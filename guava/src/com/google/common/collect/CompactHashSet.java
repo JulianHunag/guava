@@ -38,8 +38,8 @@ import java.util.NoSuchElementException;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
-import org.checkerframework.checker.nullness.compatqual.MonotonicNonNullDecl;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * CompactHashSet is an implementation of a Set. All optional operations (adding and removing) are
@@ -59,6 +59,11 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  *
  * <p>If there are no removals, then {@link #iterator iteration} order is the same as insertion
  * order. Any removal invalidates any ordering guarantees.
+ *
+ * <p>This class should not be assumed to be universally superior to {@code java.util.HashSet}.
+ * Generally speaking, this class reduces object allocation and memory consumption at the price of
+ * moderately increased constant factors of CPU.  Only use this class when there is a specific
+ * reason to prioritize memory over CPU.
  *
  * @author Dimitris Andreou
  */
@@ -134,7 +139,7 @@ class CompactHashSet<E> extends AbstractSet<E> implements Serializable {
    *
    * <p>Its size must be a power of two.
    */
-  @MonotonicNonNullDecl private transient int[] table;
+  private transient int @MonotonicNonNull [] table;
 
   /**
    * Contains the logical entries, in the range of [0, size()). The high 32 bits of each long is the
@@ -142,10 +147,10 @@ class CompactHashSet<E> extends AbstractSet<E> implements Serializable {
    * next entry in the bucket chain). The pointers in [size(), entries.length) are all "null"
    * (UNSET).
    */
-  @MonotonicNonNullDecl private transient long[] entries;
+  private transient long @MonotonicNonNull [] entries;
 
   /** The elements contained in the set, in the range of [0, size()). */
-  @MonotonicNonNullDecl transient Object[] elements;
+  transient Object @MonotonicNonNull [] elements;
 
   /** The load factor. */
   transient float loadFactor;
@@ -221,7 +226,7 @@ class CompactHashSet<E> extends AbstractSet<E> implements Serializable {
 
   @CanIgnoreReturnValue
   @Override
-  public boolean add(@NullableDecl E object) {
+  public boolean add(@Nullable E object) {
     long[] entries = this.entries;
     Object[] elements = this.elements;
     int hash = smearedHash(object);
@@ -320,7 +325,7 @@ class CompactHashSet<E> extends AbstractSet<E> implements Serializable {
   }
 
   @Override
-  public boolean contains(@NullableDecl Object object) {
+  public boolean contains(@Nullable Object object) {
     int hash = smearedHash(object);
     int next = table[hash & hashTableMask()];
     while (next != UNSET) {
@@ -335,7 +340,7 @@ class CompactHashSet<E> extends AbstractSet<E> implements Serializable {
 
   @CanIgnoreReturnValue
   @Override
-  public boolean remove(@NullableDecl Object object) {
+  public boolean remove(@Nullable Object object) {
     return remove(object, smearedHash(object));
   }
 

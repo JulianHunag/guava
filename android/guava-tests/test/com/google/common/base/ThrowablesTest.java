@@ -29,10 +29,8 @@ import static java.util.regex.Pattern.quote;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.collect.Iterables;
+import com.google.common.primitives.Ints;
 import com.google.common.testing.NullPointerTester;
-import java.security.Permission;
-import java.security.Policy;
-import java.security.ProtectionDomain;
 import java.util.List;
 import junit.framework.TestCase;
 
@@ -417,7 +415,7 @@ public class ThrowablesTest extends TestCase {
       sample.noneDeclared();
       fail();
     } catch (RuntimeException expected) {
-      assertThat(expected.getCause()).isInstanceOf(SomeCheckedException.class);
+      assertThat(expected).hasCauseThat().isInstanceOf(SomeCheckedException.class);
     }
   }
 
@@ -534,7 +532,7 @@ public class ThrowablesTest extends TestCase {
       sample.oneDeclared();
       fail();
     } catch (RuntimeException expected) {
-      assertThat(expected.getCause()).isInstanceOf(SomeOtherCheckedException.class);
+      assertThat(expected).hasCauseThat().isInstanceOf(SomeOtherCheckedException.class);
     }
   }
 
@@ -686,7 +684,7 @@ public class ThrowablesTest extends TestCase {
     SomeCheckedException cause = new SomeCheckedException();
     SomeChainingException thrown = new SomeChainingException(cause);
 
-    assertThat(thrown.getCause()).isSameAs(cause);
+    assertThat(thrown).hasCauseThat().isSameAs(cause);
     assertThat(Throwables.getCauseAs(thrown, SomeCheckedException.class)).isSameAs(cause);
     assertThat(Throwables.getCauseAs(thrown, Exception.class)).isSameAs(cause);
 
@@ -694,15 +692,16 @@ public class ThrowablesTest extends TestCase {
       Throwables.getCauseAs(thrown, IllegalStateException.class);
       fail("Should have thrown CCE");
     } catch (ClassCastException expected) {
-      assertThat(expected.getCause()).isSameAs(thrown);
+      assertThat(expected).hasCauseThat().isSameAs(thrown);
     }
   }
 
   @AndroidIncompatible // No getJavaLangAccess in Android (at least not in the version we use).
   @GwtIncompatible // lazyStackTraceIsLazy()
   public void testLazyStackTraceWorksInProd() {
-    // TODO(b/64442212): Remove this guard once lazyStackTrace() works in Java 9.
-    if (JAVA_SPECIFICATION_VERSION.value().equals("9")) {
+    // TODO(b/64442212): Remove this guard once lazyStackTrace() works in Java 9+.
+    Integer javaVersion = Ints.tryParse(JAVA_SPECIFICATION_VERSION.value());
+    if (javaVersion != null && javaVersion >= 9) {
       return;
     }
     // Obviously this isn't guaranteed in every environment, but it works well enough for now:
@@ -748,14 +747,6 @@ public class ThrowablesTest extends TestCase {
 
     e.setStackTrace(new StackTraceElement[0]);
     assertThat(lazyStackTrace(e)).isEmpty();
-  }
-
-  @GwtIncompatible // used only by GwtIncompatible code
-  private static class AllowSettingSecurityManagerPolicy extends Policy {
-    @Override
-    public boolean implies(ProtectionDomain pd, Permission perm) {
-      return true;
-    }
   }
 
   @GwtIncompatible // NullPointerTester

@@ -73,6 +73,13 @@ public final class HttpHeaders {
   public static final String CONNECTION = "Connection";
   /** The HTTP {@code Cookie} header field name. */
   public static final String COOKIE = "Cookie";
+  /**
+   * The HTTP <a href="https://tools.ietf.org/html/rfc8470">{@code Early-Data}</a> header field
+   * name.
+   *
+   * @since 27.0
+   */
+  public static final String EARLY_DATA = "Early-Data";
   /** The HTTP {@code Expect} header field name. */
   public static final String EXPECT = "Expect";
   /** The HTTP {@code From} header field name. */
@@ -96,7 +103,7 @@ public final class HttpHeaders {
    * The HTTP <a href="https://tools.ietf.org/html/rfc7540#section-3.2.1">{@code HTTP2-Settings}
    * </a> header field name.
    *
-   * @since NEXT
+   * @since 24.0
    */
   public static final String HTTP2_SETTINGS = "HTTP2-Settings";
   /** The HTTP {@code If-Match} header field name. */
@@ -252,6 +259,11 @@ public final class HttpHeaders {
   public static final String LINK = "Link";
   /** The HTTP {@code Location} header field name. */
   public static final String LOCATION = "Location";
+  /**
+   * The HTTP <a href="https://googlechrome.github.io/OriginTrials/#header">{@code Origin-Trial}</a>
+   * header field name.
+   */
+  public static final String ORIGIN_TRIAL = "Origin-Trial";
   /** The HTTP {@code P3P} header field name. Limited browser support. */
   public static final String P3P = "P3P";
   /** The HTTP {@code Proxy-Authenticate} header field name. */
@@ -349,6 +361,17 @@ public final class HttpHeaders {
   public static final String X_REQUESTED_WITH = "X-Requested-With";
   /** The HTTP {@code X-User-IP} header field name. */
   public static final String X_USER_IP = "X-User-IP";
+  /**
+   * The HTTP <a href="https://goo.gl/VKpXxa">{@code X-Download-Options}</a> header field name.
+   *
+   * <p>When the new X-Download-Options header is present with the value {@code noopen}, the user is
+   * prevented from opening a file download directly; instead, they must first save the file
+   * locally.
+   *
+   * @since 24.1
+   */
+  @Beta
+  public static final String X_DOWNLOAD_OPTIONS = "X-Download-Options";
   /** The HTTP {@code X-XSS-Protection} header field name. */
   public static final String X_XSS_PROTECTION = "X-XSS-Protection";
   /**
@@ -372,4 +395,33 @@ public final class HttpHeaders {
    * @since 19.0
    */
   public static final String PING_TO = "Ping-To";
+
+  /**
+   * The HTTP <a href="https://github.com/mikewest/sec-metadata">{@code Sec-Metadata}</a> header
+   * field name.
+   *
+   * @since 26.0
+   */
+  public static final String SEC_METADATA = "Sec-Metadata";
+  /**
+   * The HTTP <a href="https://tools.ietf.org/html/draft-ietf-tokbind-https">{@code
+   * Sec-Token-Binding}</a> header field name.
+   *
+   * @since 25.1
+   */
+  public static final String SEC_TOKEN_BINDING = "Sec-Token-Binding";
+  /**
+   * The HTTP <a href="https://tools.ietf.org/html/draft-ietf-tokbind-ttrp">{@code
+   * Sec-Provided-Token-Binding-ID}</a> header field name.
+   *
+   * @since 25.1
+   */
+  public static final String SEC_PROVIDED_TOKEN_BINDING_ID = "Sec-Provided-Token-Binding-ID";
+  /**
+   * The HTTP <a href="https://tools.ietf.org/html/draft-ietf-tokbind-ttrp">{@code
+   * Sec-Referred-Token-Binding-ID}</a> header field name.
+   *
+   * @since 25.1
+   */
+  public static final String SEC_REFERRED_TOKEN_BINDING_ID = "Sec-Referred-Token-Binding-ID";
 }

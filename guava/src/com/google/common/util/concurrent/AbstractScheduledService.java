@@ -35,8 +35,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.checkerframework.checker.nullness.compatqual.MonotonicNonNullDecl;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Base class for services that can implement {@link #startUp} and {@link #shutDown} but while in
@@ -122,6 +122,7 @@ public abstract class AbstractScheduledService implements Service {
      *     next
      * @param unit the time unit of the initialDelay and delay parameters
      */
+    @SuppressWarnings("GoodTime") // should accept a java.time.Duration
     public static Scheduler newFixedDelaySchedule(
         final long initialDelay, final long delay, final TimeUnit unit) {
       checkNotNull(unit);
@@ -143,6 +144,7 @@ public abstract class AbstractScheduledService implements Service {
      * @param period the period between successive executions of the task
      * @param unit the time unit of the initialDelay and period parameters
      */
+    @SuppressWarnings("GoodTime") // should accept a java.time.Duration
     public static Scheduler newFixedRateSchedule(
         final long initialDelay, final long period, final TimeUnit unit) {
       checkNotNull(unit);
@@ -171,8 +173,8 @@ public abstract class AbstractScheduledService implements Service {
 
     // A handle to the running task so that we can stop it when a shutdown has been requested.
     // These two fields are volatile because their values will be accessed from multiple threads.
-    @MonotonicNonNullDecl private volatile Future<?> runningTask;
-    @MonotonicNonNullDecl private volatile ScheduledExecutorService executorService;
+    @MonotonicNonNull private volatile Future<?> runningTask;
+    @MonotonicNonNull private volatile ScheduledExecutorService executorService;
 
     // This lock protects the task so we can ensure that none of the template methods (startUp,
     // shutDown or runOneIteration) run concurrently with one another.
@@ -466,7 +468,7 @@ public abstract class AbstractScheduledService implements Service {
 
       /** The future that represents the next execution of this task. */
       @GuardedBy("lock")
-      @NullableDecl private Future<Void> currentFuture;
+      private @Nullable Future<Void> currentFuture;
 
       ReschedulableCallable(
           AbstractService service, ScheduledExecutorService executor, Runnable runnable) {

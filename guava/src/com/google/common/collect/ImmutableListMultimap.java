@@ -37,7 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * A {@link ListMultimap} whose contents will never change, with many other important properties
@@ -348,10 +348,24 @@ public class ImmutableListMultimap<K, V> extends ImmutableMultimap<K, V>
     return fromMapEntries(multimap.asMap().entrySet(), null);
   }
 
+  /**
+   * Returns an immutable multimap containing the specified entries. The returned multimap iterates
+   * over keys in the order they were first encountered in the input, and the values for each key
+   * are iterated in the order they were encountered.
+   *
+   * @throws NullPointerException if any key, value, or entry is null
+   * @since 19.0
+   */
+  @Beta
+  public static <K, V> ImmutableListMultimap<K, V> copyOf(
+      Iterable<? extends Entry<? extends K, ? extends V>> entries) {
+    return new Builder<K, V>().putAll(entries).build();
+  }
+
   /** Creates an ImmutableListMultimap from an asMap.entrySet. */
   static <K, V> ImmutableListMultimap<K, V> fromMapEntries(
       Collection<? extends Map.Entry<? extends K, ? extends Collection<? extends V>>> mapEntries,
-      @NullableDecl Comparator<? super V> valueComparator) {
+      @Nullable Comparator<? super V> valueComparator) {
     if (mapEntries.isEmpty()) {
       return of();
     }
@@ -375,20 +389,6 @@ public class ImmutableListMultimap<K, V> extends ImmutableMultimap<K, V>
     return new ImmutableListMultimap<>(builder.build(), size);
   }
 
-  /**
-   * Returns an immutable multimap containing the specified entries. The returned multimap iterates
-   * over keys in the order they were first encountered in the input, and the values for each key
-   * are iterated in the order they were encountered.
-   *
-   * @throws NullPointerException if any key, value, or entry is null
-   * @since 19.0
-   */
-  @Beta
-  public static <K, V> ImmutableListMultimap<K, V> copyOf(
-      Iterable<? extends Entry<? extends K, ? extends V>> entries) {
-    return new Builder<K, V>().putAll(entries).build();
-  }
-
   ImmutableListMultimap(ImmutableMap<K, ImmutableList<V>> map, int size) {
     super(map, size);
   }
@@ -401,7 +401,7 @@ public class ImmutableListMultimap<K, V> extends ImmutableMultimap<K, V>
    * parameters used to build this multimap.
    */
   @Override
-  public ImmutableList<V> get(@NullableDecl K key) {
+  public ImmutableList<V> get(@Nullable K key) {
     // This cast is safe as its type is known in constructor.
     ImmutableList<V> list = (ImmutableList<V>) map.get(key);
     return (list == null) ? ImmutableList.<V>of() : list;

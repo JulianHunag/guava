@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.base.Splitter.MapSplitter;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.testing.NullPointerTester;
 import java.util.Iterator;
@@ -354,7 +355,7 @@ public class SplitterTest extends TestCase {
   @GwtIncompatible // java.util.regex.Pattern
   @AndroidIncompatible // Bug in older versions of Android we test against, since fixed.
   public void testPatternSplitLookBehind() {
-    if (!Platform.usingJdkPatternCompiler()) {
+    if (!CommonPattern.isPcreLike()) {
       return;
     }
     String toSplit = ":foo::barbaz:";
@@ -491,7 +492,7 @@ public class SplitterTest extends TestCase {
   @GwtIncompatible // java.util.regex.Pattern
   @AndroidIncompatible // not clear that j.u.r.Matcher promises to handle mutations during use
   public void testSplitterIterableIsLazy_pattern() {
-    if (!Platform.usingJdkPatternCompiler()) {
+    if (!CommonPattern.isPcreLike()) {
       return;
     }
     assertSplitterIterableIsLazy(Splitter.onPattern(","));
@@ -586,6 +587,12 @@ public class SplitterTest extends TestCase {
     String simple = "abcd";
     Iterable<String> letters = Splitter.fixedLength(1).limit(2).split(simple);
     assertThat(letters).containsExactly("a", "bcd").inOrder();
+  }
+
+  public void testLimit1Separator() {
+    String simple = "a,b,c,d";
+    Iterable<String> items = COMMA_SPLITTER.limit(1).split(simple);
+    assertThat(items).containsExactly("a,b,c,d").inOrder();
   }
 
   public void testLimitSeparator() {
@@ -773,5 +780,12 @@ public class SplitterTest extends TestCase {
       fail();
     } catch (IllegalArgumentException expected) {
     }
+  }
+
+  public void testMapSplitter_varyingTrimLevels() {
+    MapSplitter splitter = COMMA_SPLITTER.trimResults().withKeyValueSeparator(Splitter.on("->"));
+    Map<String, String> split = splitter.split(" x -> y, z-> a ");
+    assertThat(split).containsEntry("x ", " y");
+    assertThat(split).containsEntry("z", " a");
   }
 }

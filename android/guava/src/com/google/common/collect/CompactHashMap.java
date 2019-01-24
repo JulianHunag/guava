@@ -59,6 +59,11 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * {@link #values} views is the same as insertion order. Any removal invalidates any ordering
  * guarantees.
  *
+ * <p>This class should not be assumed to be universally superior to {@code java.util.HashMap}.
+ * Generally speaking, this class reduces object allocation and memory consumption at the price of
+ * moderately increased constant factors of CPU.  Only use this class when there is a specific
+ * reason to prioritize memory over CPU.
+ *
  * @author Louis Wasserman
  */
 @GwtIncompatible // not worth using in GWT for now
@@ -123,19 +128,19 @@ class CompactHashMap<K, V> extends AbstractMap<K, V> implements Serializable {
    * next entry in the bucket chain). The pointers in [size(), entries.length) are all "null"
    * (UNSET).
    */
-  @MonotonicNonNullDecl @VisibleForTesting transient long[] entries;
+  @VisibleForTesting @MonotonicNonNullDecl transient long[] entries;
 
   /**
    * The keys of the entries in the map, in the range of [0, size()). The keys in [size(),
    * keys.length) are all {@code null}.
    */
-  @MonotonicNonNullDecl @VisibleForTesting transient Object[] keys;
+  @VisibleForTesting @MonotonicNonNullDecl transient Object[] keys;
 
   /**
    * The values of the entries in the map, in the range of [0, size()). The values in [size(),
    * values.length) are all {@code null}.
    */
-  @MonotonicNonNullDecl @VisibleForTesting transient Object[] values;
+  @VisibleForTesting @MonotonicNonNullDecl transient Object[] values;
 
   /** The load factor. */
   transient float loadFactor;
@@ -368,11 +373,6 @@ class CompactHashMap<K, V> extends AbstractMap<K, V> implements Serializable {
     return remove(key, smearedHash(key));
   }
 
-  @CanIgnoreReturnValue
-  private V removeEntry(int entryIndex) {
-    return remove(keys[entryIndex], getHash(entries[entryIndex]));
-  }
-
   @NullableDecl
   private V remove(@NullableDecl Object key, int hash) {
     int tableIndex = hash & hashTableMask();
@@ -406,6 +406,11 @@ class CompactHashMap<K, V> extends AbstractMap<K, V> implements Serializable {
       next = getNext(entries[next]);
     } while (next != UNSET);
     return null;
+  }
+
+  @CanIgnoreReturnValue
+  private V removeEntry(int entryIndex) {
+    return remove(keys[entryIndex], getHash(entries[entryIndex]));
   }
 
   /**

@@ -1,7 +1,7 @@
 # Guava: Google Core Libraries for Java
 
+[![Latest release](https://img.shields.io/github/release/google/guava.svg)](https://github.com/google/guava/releases/latest)
 [![Build Status](https://travis-ci.org/google/guava.svg?branch=master)](https://travis-ci.org/google/guava)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.google.guava/guava/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.google.guava/guava)
 
 Guava is a set of core libraries that includes new collection types (such as
 multimap and multiset), immutable collections, a graph library, functional
@@ -16,12 +16,14 @@ Guava comes in two flavors.
 
 [`android` directory]: https://github.com/google/guava/tree/master/android
 
-## Latest release
+## Adding Guava to your build
 
-The most recent release is [Guava 23.6][current release], released 2017-12-20.
-
-The Maven group ID is `com.google.guava`, and the artifact ID is `guava`. Use
-version `23.6-jre` for the JRE flavor, or `23.6-android` for the Android flavor.
+Guava's Maven group ID is `com.google.guava` and its artifact ID is `guava`.
+Guava provides two different "flavors": one for use on a (Java 8+) JRE and one
+for use on Android or Java 7 or by any library that wants to be compatible with
+either of those. These flavors are specified in the Maven version field as
+either `27.0.1-jre` or `27.0.1-android`. For more about depending on
+Guava, see [using Guava in your build].
 
 To add a dependency on Guava using Maven, use the following:
 
@@ -29,23 +31,21 @@ To add a dependency on Guava using Maven, use the following:
 <dependency>
   <groupId>com.google.guava</groupId>
   <artifactId>guava</artifactId>
-  <version>23.6-jre</version>
+  <version>27.0.1-jre</version>
   <!-- or, for Android: -->
-  <version>23.6-android</version>
+  <version>27.0.1-android</version>
 </dependency>
 ```
 
 To add a dependency using Gradle:
 
-```
+```gradle
 dependencies {
-  compile 'com.google.guava:guava:23.6-jre'
+  compile 'com.google.guava:guava:27.0.1-jre'
   // or, for Android:
-  compile 'com.google.guava:guava:23.6-android'
+  api 'com.google.guava:guava:27.0.1-android'
 }
 ```
-
-For more about depending on Guava, see [Using Guava in your build].
 
 ## Snapshots
 
@@ -85,27 +85,29 @@ APIs will remain (again, unless they are `@Beta`). We have no plans to start
 removing things again, but officially, we're leaving our options open in case
 of surprises (like, say, a serious security problem).
 
-3. Serialized forms of ALL objects are subject to change unless noted
+3. Guava has one dependency that is needed at runtime:
+`com.google.guava:failureaccess:1.0`
+
+4. Serialized forms of ALL objects are subject to change unless noted
 otherwise. Do not persist these and assume they can be read by a
 future version of the library.
 
-4. Our classes are not designed to protect against a malicious caller.
+5. Our classes are not designed to protect against a malicious caller.
 You should not use them for communication between trusted and
 untrusted code.
 
-5. For the mainline flavor, we unit-test the libraries using only OpenJDK 1.8 on
+6. For the mainline flavor, we unit-test the libraries using only OpenJDK 1.8 on
 Linux. Some features, especially in `com.google.common.io`, may not work
 correctly in other environments. For the Android flavor, our unit tests run on
 API level 15 (Ice Cream Sandwich).
 
-[current release]: https://github.com/google/guava/releases/tag/v23.6
-[guava-snapshot-api-docs]: http://google.github.io/guava/releases/snapshot-jre/api/docs/
-[guava-snapshot-api-diffs]: http://google.github.io/guava/releases/snapshot-jre/api/diffs/
+[guava-snapshot-api-docs]: https://google.github.io/guava/releases/snapshot-jre/api/docs/
+[guava-snapshot-api-diffs]: https://google.github.io/guava/releases/snapshot-jre/api/diffs/
 [Guava Explained]: https://github.com/google/guava/wiki/Home
 [Guava Beta Checker]: https://github.com/google/guava-beta-checker
 
 <!-- References -->
 
-[Using Guava in your build]: https://github.com/google/guava/wiki/UseGuavaInYourBuild
+[using Guava in your build]: https://github.com/google/guava/wiki/UseGuavaInYourBuild
 [repackage]: https://github.com/google/guava/wiki/UseGuavaInYourBuild#what-if-i-want-to-use-beta-apis-from-a-library-that-people-use-as-a-dependency
 

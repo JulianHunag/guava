@@ -39,7 +39,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -152,7 +151,7 @@ public final class Files {
       Closer closer = Closer.create();
       try {
         FileInputStream in = closer.register(openStream());
-        return readFile(in, in.getChannel().size());
+        return ByteStreams.toByteArray(in, in.getChannel().size());
       } catch (Throwable e) {
         throw closer.rethrow(e);
       } finally {
@@ -164,29 +163,6 @@ public final class Files {
     public String toString() {
       return "Files.asByteSource(" + file + ")";
     }
-  }
-
-  /**
-   * Reads a file of the given expected size from the given input stream, if it will fit into a byte
-   * array. This method handles the case where the file size changes between when the size is read
-   * and when the contents are read from the stream.
-   */
-  static byte[] readFile(InputStream in, long expectedSize) throws IOException {
-    if (expectedSize > Integer.MAX_VALUE) {
-      throw new OutOfMemoryError(
-          "file is too large to fit in a byte array: " + expectedSize + " bytes");
-    }
-
-    // some special files may return size 0 but have content, so read
-    // the file normally in that case guessing at the buffer size to use.  Note, there is no point
-    // in calling the 'toByteArray' overload that doesn't take a size because that calls
-    // InputStream.available(), but our caller has already done that.  So instead just guess that
-    // the file is 4K bytes long and rely on the fallback in toByteArray to expand the buffer if
-    // needed.
-    // This also works around an app-engine bug where FileInputStream.available() consistently
-    // throws an IOException for certain files, even though FileInputStream.getChannel().size() does
-    // not!
-    return ByteStreams.toByteArray(in, expectedSize == 0 ? 4096 : (int) expectedSize);
   }
 
   /**
@@ -290,6 +266,22 @@ public final class Files {
   }
 
   /**
+   * Writes a character sequence (such as a string) to a file using the given character set.
+   *
+   * @param from the character sequence to write
+   * @param to the destination file
+   * @param charset the charset used to encode the output stream; see {@link StandardCharsets} for
+   *     helpful predefined constants
+   * @throws IOException if an I/O error occurs
+   * @deprecated Prefer {@code asCharSink(to, charset).write(from)}. This method is scheduled to be
+   *     removed in January 2019.
+   */
+  @Deprecated
+  public static void write(CharSequence from, File to, Charset charset) throws IOException {
+    asCharSink(to, charset).write(from);
+  }
+
+  /**
    * Copies all bytes from a file to an output stream.
    *
    * <p><b>{@link java.nio.file.Path} equivalent:</b> {@link
@@ -328,19 +320,20 @@ public final class Files {
   }
 
   /**
-   * Writes a character sequence (such as a string) to a file using the given character set.
+   * Copies all characters from a file to an appendable object, using the given character set.
    *
-   * @param from the character sequence to write
-   * @param to the destination file
-   * @param charset the charset used to encode the output stream; see {@link StandardCharsets} for
+   * @param from the source file
+   * @param charset the charset used to decode the input stream; see {@link StandardCharsets} for
    *     helpful predefined constants
+   * @param to the appendable object
    * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asCharSink(to, charset).write(from)}. This method is scheduled to be
-   *     removed in January 2019.
+   * @deprecated Prefer {@code asCharSource(from, charset).copyTo(to)}. This method is scheduled to
+   *     be removed in January 2019.
    */
   @Deprecated
-  public static void write(CharSequence from, File to, Charset charset) throws IOException {
-    asCharSink(to, charset).write(from);
+  public
+  static void copy(File from, Charset charset, Appendable to) throws IOException {
+    asCharSource(from, charset).copyTo(to);
   }
 
   /**
@@ -355,24 +348,9 @@ public final class Files {
    *     method is scheduled to be removed in January 2019.
    */
   @Deprecated
-  public static void append(CharSequence from, File to, Charset charset) throws IOException {
+  public
+  static void append(CharSequence from, File to, Charset charset) throws IOException {
     asCharSink(to, charset, FileWriteMode.APPEND).write(from);
-  }
-
-  /**
-   * Copies all characters from a file to an appendable object, using the given character set.
-   *
-   * @param from the source file
-   * @param charset the charset used to decode the input stream; see {@link StandardCharsets} for
-   *     helpful predefined constants
-   * @param to the appendable object
-   * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asCharSource(from, charset).copyTo(to)}. This method is scheduled to
-   *     be removed in January 2019.
-   */
-  @Deprecated
-  public static void copy(File from, Charset charset, Appendable to) throws IOException {
-    asCharSource(from, charset).copyTo(to);
   }
 
   /**
@@ -421,6 +399,7 @@ public final class Files {
    */
   public static File createTempDir() {
     File baseDir = new File(System.getProperty("java.io.tmpdir"));
+    @SuppressWarnings("GoodTime") // reading system time without TimeSource
     String baseName = System.currentTimeMillis() + "-";
 
     for (int counter = 0; counter < TEMP_DIR_ATTEMPTS; counter++) {
@@ -447,6 +426,7 @@ public final class Files {
    * @param file the file to create or update
    * @throws IOException if an I/O error occurs
    */
+  @SuppressWarnings("GoodTime") // reading system time without TimeSource
   public static void touch(File file) throws IOException {
     checkNotNull(file);
     if (!file.createNewFile() && !file.setLastModified(System.currentTimeMillis())) {
@@ -522,7 +502,8 @@ public final class Files {
    *     scheduled to be removed in January 2019.
    */
   @Deprecated
-  public static String readFirstLine(File file, Charset charset) throws IOException {
+  public
+  static String readFirstLine(File file, Charset charset) throws IOException {
     return asCharSource(file, charset).readFirstLine();
   }
 
@@ -578,8 +559,8 @@ public final class Files {
    */
   @Deprecated
   @CanIgnoreReturnValue // some processors won't return a useful result
-  public static <T> T readLines(File file, Charset charset, LineProcessor<T> callback)
-      throws IOException {
+  public
+  static <T> T readLines(File file, Charset charset, LineProcessor<T> callback) throws IOException {
     return asCharSource(file, charset).readLines(callback);
   }
 
@@ -597,7 +578,8 @@ public final class Files {
    */
   @Deprecated
   @CanIgnoreReturnValue // some processors won't return a useful result
-  public static <T> T readBytes(File file, ByteProcessor<T> processor) throws IOException {
+  public
+  static <T> T readBytes(File file, ByteProcessor<T> processor) throws IOException {
     return asByteSource(file).read(processor);
   }
 
@@ -613,7 +595,8 @@ public final class Files {
    *     be removed in January 2019.
    */
   @Deprecated
-  public static HashCode hash(File file, HashFunction hashFunction) throws IOException {
+  public
+  static HashCode hash(File file, HashFunction hashFunction) throws IOException {
     return asByteSource(file).hash(hashFunction);
   }
 
@@ -655,12 +638,7 @@ public final class Files {
    * @since 2.0
    */
   public static MappedByteBuffer map(File file, MapMode mode) throws IOException {
-    checkNotNull(file);
-    checkNotNull(mode);
-    if (!file.exists()) {
-      throw new FileNotFoundException(file.toString());
-    }
-    return map(file, mode, file.length());
+    return mapInternal(file, mode, -1);
   }
 
   /**
@@ -682,8 +660,13 @@ public final class Files {
    * @see FileChannel#map(MapMode, long, long)
    * @since 2.0
    */
-  public static MappedByteBuffer map(File file, MapMode mode, long size)
-      throws FileNotFoundException, IOException {
+  public static MappedByteBuffer map(File file, MapMode mode, long size) throws IOException {
+    checkArgument(size >= 0, "size (%s) may not be negative", size);
+    return mapInternal(file, mode, size);
+  }
+
+  private static MappedByteBuffer mapInternal(File file, MapMode mode, long size)
+      throws IOException {
     checkNotNull(file);
     checkNotNull(mode);
 
@@ -691,20 +674,8 @@ public final class Files {
     try {
       RandomAccessFile raf =
           closer.register(new RandomAccessFile(file, mode == MapMode.READ_ONLY ? "r" : "rw"));
-      return map(raf, mode, size);
-    } catch (Throwable e) {
-      throw closer.rethrow(e);
-    } finally {
-      closer.close();
-    }
-  }
-
-  private static MappedByteBuffer map(RandomAccessFile raf, MapMode mode, long size)
-      throws IOException {
-    Closer closer = Closer.create();
-    try {
       FileChannel channel = closer.register(raf.getChannel());
-      return channel.map(mode, 0, size);
+      return channel.map(mode, 0, size == -1 ? channel.size() : size);
     } catch (Throwable e) {
       throw closer.rethrow(e);
     } finally {
@@ -826,11 +797,10 @@ public final class Files {
    *
    * @since 15.0
    * @deprecated The returned {@link TreeTraverser} type is deprecated. Use the replacement method
-   *     {@link #fileTraverser()} instead with the same semantics as this method. This method is
-   *     scheduled to be removed in April 2018.
+   *     {@link #fileTraverser()} instead with the same semantics as this method.
    */
   @Deprecated
-  public static TreeTraverser<File> fileTreeTraverser() {
+  static TreeTraverser<File> fileTreeTraverser() {
     return FILE_TREE_TRAVERSER;
   }
 
@@ -863,8 +833,9 @@ public final class Files {
    * a directory, no exception will be thrown and the returned {@link Iterable} will contain a
    * single element: that file.
    *
-   * <p>Example: {@code Files.fileTraverser().breadthFirst("/")} may return files with the following
-   * paths: {@code ["/", "/etc", "/home", "/usr", "/etc/config.txt", "/etc/fonts", ...]}
+   * <p>Example: {@code Files.fileTraverser().depthFirstPreOrder(new File("/"))} may return files
+   * with the following paths: {@code ["/", "/etc", "/etc/config.txt", "/etc/fonts", "/home",
+   * "/home/alice", ...]}
    *
    * @since 23.5
    */

@@ -256,13 +256,6 @@ public final class HashBiMap<K, V> extends AbstractMap<K, V> implements BiMap<K,
     return put(key, value, false);
   }
 
-  @Override
-  @NullableDecl
-  @CanIgnoreReturnValue
-  public V forcePut(@NullableDecl K key, @NullableDecl V value) {
-    return put(key, value, true);
-  }
-
   @NullableDecl
   V put(@NullableDecl K key, @NullableDecl V value, boolean force) {
     int keyHash = Hashing.smearedHash(key);
@@ -299,6 +292,13 @@ public final class HashBiMap<K, V> extends AbstractMap<K, V> implements BiMap<K,
     size++;
     modCount++;
     return null;
+  }
+
+  @Override
+  @CanIgnoreReturnValue
+  @NullableDecl
+  public V forcePut(@NullableDecl K key, @NullableDecl V value) {
+    return put(key, value, true);
   }
 
   @NullableDecl
@@ -517,8 +517,8 @@ public final class HashBiMap<K, V> extends AbstractMap<K, V> implements BiMap<K,
   }
 
   @Override
-  @NullableDecl
   @CanIgnoreReturnValue
+  @NullableDecl
   public V remove(@NullableDecl Object key) {
     int keyHash = Hashing.smearedHash(key);
     int entry = findEntryByKey(key, keyHash);
@@ -549,16 +549,6 @@ public final class HashBiMap<K, V> extends AbstractMap<K, V> implements BiMap<K,
     removeEntryKeyHashKnown(entry, Hashing.smearedHash(keys[entry]));
   }
 
-  /** Removes the entry at the specified index, given the hash of its key. */
-  void removeEntryKeyHashKnown(int entry, int keyHash) {
-    removeEntry(entry, keyHash, Hashing.smearedHash(values[entry]));
-  }
-
-  /** Removes the entry at the specified index, given the hash of its value. */
-  void removeEntryValueHashKnown(int entry, int valueHash) {
-    removeEntry(entry, Hashing.smearedHash(keys[entry]), valueHash);
-  }
-
   /** Removes the entry at the specified index, given the hash of its key and value. */
   private void removeEntry(int entry, int keyHash, int valueHash) {
     checkArgument(entry != ABSENT);
@@ -574,6 +564,16 @@ public final class HashBiMap<K, V> extends AbstractMap<K, V> implements BiMap<K,
     values[size - 1] = null;
     size--;
     modCount++;
+  }
+
+  /** Removes the entry at the specified index, given the hash of its key. */
+  void removeEntryKeyHashKnown(int entry, int keyHash) {
+    removeEntry(entry, keyHash, Hashing.smearedHash(values[entry]));
+  }
+
+  /** Removes the entry at the specified index, given the hash of its value. */
+  void removeEntryValueHashKnown(int entry, int valueHash) {
+    removeEntry(entry, Hashing.smearedHash(keys[entry]), valueHash);
   }
 
   /**
@@ -926,15 +926,15 @@ public final class HashBiMap<K, V> extends AbstractMap<K, V> implements BiMap<K,
     }
 
     @Override
-    @NullableDecl
     @CanIgnoreReturnValue
+    @NullableDecl
     public K put(@NullableDecl V value, @NullableDecl K key) {
       return forward.putInverse(value, key, false);
     }
 
     @Override
-    @NullableDecl
     @CanIgnoreReturnValue
+    @NullableDecl
     public K forcePut(@NullableDecl V value, @NullableDecl K key) {
       return forward.putInverse(value, key, true);
     }
@@ -945,8 +945,8 @@ public final class HashBiMap<K, V> extends AbstractMap<K, V> implements BiMap<K,
     }
 
     @Override
-    @NullableDecl
     @CanIgnoreReturnValue
+    @NullableDecl
     public K remove(@NullableDecl Object value) {
       return forward.removeInverse(value);
     }

@@ -18,7 +18,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtCompatible;
 import java.io.Serializable;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Utility class for converting between various ASCII case formats. Behavior is undefined for
@@ -174,7 +174,7 @@ public enum CaseFormat {
     }
 
     @Override
-    public boolean equals(@NullableDecl Object object) {
+    public boolean equals(@Nullable Object object) {
       if (object instanceof StringConverter) {
         StringConverter that = (StringConverter) object;
         return sourceFormat.equals(that.sourceFormat) && targetFormat.equals(that.targetFormat);
@@ -202,7 +202,7 @@ public enum CaseFormat {
   }
 
   private static String firstCharOnlyToUpper(String word) {
-    return (word.isEmpty())
+    return word.isEmpty()
         ? word
         : Ascii.toUpperCase(word.charAt(0)) + Ascii.toLowerCase(word.substring(1));
   }

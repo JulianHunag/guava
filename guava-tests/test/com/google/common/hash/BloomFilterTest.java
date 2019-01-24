@@ -38,7 +38,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import junit.framework.TestCase;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Tests for SimpleGenericBloomFilter and derived BloomFilter views.
@@ -295,7 +295,9 @@ public class BloomFilterTest extends TestCase {
           BloomFilter.create(HashTestUtils.BAD_FUNNEL, Integer.MAX_VALUE, Double.MIN_VALUE);
       fail("we can't represent such a large BF!");
     } catch (IllegalArgumentException expected) {
-      assertThat(expected).hasMessage("Could not create BloomFilter of 3327428144502 bits");
+      assertThat(expected)
+          .hasMessageThat()
+          .isEqualTo("Could not create BloomFilter of 3327428144502 bits");
     }
   }
 
@@ -422,7 +424,7 @@ public class BloomFilterTest extends TestCase {
     }
 
     @Override
-    public boolean equals(@NullableDecl Object object) {
+    public boolean equals(@Nullable Object object) {
       return (object instanceof CustomFunnel);
     }
 

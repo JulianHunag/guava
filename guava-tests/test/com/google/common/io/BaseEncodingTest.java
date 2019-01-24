@@ -34,7 +34,7 @@ import java.io.OutputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import junit.framework.TestCase;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Tests for {@code BaseEncoding}.
@@ -388,14 +388,14 @@ public class BaseEncodingTest extends TestCase {
   }
 
   private static void assertFailsToDecode(
-      BaseEncoding encoding, String cannotDecode, @NullableDecl String expectedMessage) {
+      BaseEncoding encoding, String cannotDecode, @Nullable String expectedMessage) {
     assertFalse(encoding.canDecode(cannotDecode));
     try {
       encoding.decode(cannotDecode);
       fail("Expected IllegalArgumentException");
     } catch (IllegalArgumentException expected) {
       if (expectedMessage != null) {
-        assertThat(expected.getCause()).hasMessage(expectedMessage);
+        assertThat(expected).hasCauseThat().hasMessageThat().isEqualTo(expectedMessage);
       }
     }
     try {
@@ -403,7 +403,7 @@ public class BaseEncodingTest extends TestCase {
       fail("Expected DecodingException");
     } catch (DecodingException expected) {
       if (expectedMessage != null) {
-        assertThat(expected).hasMessage(expectedMessage);
+        assertThat(expected).hasMessageThat().isEqualTo(expectedMessage);
       }
     }
   }

@@ -44,7 +44,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Static utility methods related to {@code Stream} instances.
@@ -373,14 +373,14 @@ public final class Streams {
           .onClose(stream::close);
     }
     class Splitr extends MapWithIndexSpliterator<Spliterator<T>, R, Splitr> implements Consumer<T> {
-      @NullableDecl T holder;
+      @Nullable T holder;
 
       Splitr(Spliterator<T> splitr, long index) {
         super(splitr, index);
       }
 
       @Override
-      public void accept(@NullableDecl T t) {
+      public void accept(@Nullable T t) {
         this.holder = t;
       }
 
@@ -403,57 +403,6 @@ public final class Streams {
       }
     }
     return StreamSupport.stream(new Splitr(fromSpliterator, 0), isParallel).onClose(stream::close);
-  }
-
-  /**
-   * An analogue of {@link java.util.function.Function} also accepting an index.
-   *
-   * <p>This interface is only intended for use by callers of {@link #mapWithIndex(Stream,
-   * FunctionWithIndex)}.
-   *
-   * @since 21.0
-   */
-  @Beta
-  public interface FunctionWithIndex<T, R> {
-    /** Applies this function to the given argument and its index within a stream. */
-    R apply(T from, long index);
-  }
-
-  private abstract static class MapWithIndexSpliterator<
-          F extends Spliterator<?>, R, S extends MapWithIndexSpliterator<F, R, S>>
-      implements Spliterator<R> {
-    final F fromSpliterator;
-    long index;
-
-    MapWithIndexSpliterator(F fromSpliterator, long index) {
-      this.fromSpliterator = fromSpliterator;
-      this.index = index;
-    }
-
-    abstract S createSplit(F from, long i);
-
-    @Override
-    public S trySplit() {
-      @SuppressWarnings("unchecked")
-      F split = (F) fromSpliterator.trySplit();
-      if (split == null) {
-        return null;
-      }
-      S result = createSplit(split, index);
-      this.index += split.getExactSizeIfKnown();
-      return result;
-    }
-
-    @Override
-    public long estimateSize() {
-      return fromSpliterator.estimateSize();
-    }
-
-    @Override
-    public int characteristics() {
-      return fromSpliterator.characteristics()
-          & (Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED);
-    }
   }
 
   /**
@@ -535,20 +484,6 @@ public final class Streams {
   }
 
   /**
-   * An analogue of {@link java.util.function.IntFunction} also accepting an index.
-   *
-   * <p>This interface is only intended for use by callers of {@link #mapWithIndex(IntStream,
-   * IntFunctionWithIndex)}.
-   *
-   * @since 21.0
-   */
-  @Beta
-  public interface IntFunctionWithIndex<R> {
-    /** Applies this function to the given argument and its index within a stream. */
-    R apply(int from, long index);
-  }
-
-  /**
    * Returns a stream consisting of the results of applying the given function to the elements of
    * {@code stream} and their indexes in the stream. For example,
    *
@@ -624,20 +559,6 @@ public final class Streams {
       }
     }
     return StreamSupport.stream(new Splitr(fromSpliterator, 0), isParallel).onClose(stream::close);
-  }
-
-  /**
-   * An analogue of {@link java.util.function.LongFunction} also accepting an index.
-   *
-   * <p>This interface is only intended for use by callers of {@link #mapWithIndex(LongStream,
-   * LongFunctionWithIndex)}.
-   *
-   * @since 21.0
-   */
-  @Beta
-  public interface LongFunctionWithIndex<R> {
-    /** Applies this function to the given argument and its index within a stream. */
-    R apply(long from, long index);
   }
 
   /**
@@ -720,6 +641,85 @@ public final class Streams {
   }
 
   /**
+   * An analogue of {@link java.util.function.Function} also accepting an index.
+   *
+   * <p>This interface is only intended for use by callers of {@link #mapWithIndex(Stream,
+   * FunctionWithIndex)}.
+   *
+   * @since 21.0
+   */
+  @Beta
+  public interface FunctionWithIndex<T, R> {
+    /** Applies this function to the given argument and its index within a stream. */
+    R apply(T from, long index);
+  }
+
+  private abstract static class MapWithIndexSpliterator<
+          F extends Spliterator<?>, R, S extends MapWithIndexSpliterator<F, R, S>>
+      implements Spliterator<R> {
+    final F fromSpliterator;
+    long index;
+
+    MapWithIndexSpliterator(F fromSpliterator, long index) {
+      this.fromSpliterator = fromSpliterator;
+      this.index = index;
+    }
+
+    abstract S createSplit(F from, long i);
+
+    @Override
+    public S trySplit() {
+      @SuppressWarnings("unchecked")
+      F split = (F) fromSpliterator.trySplit();
+      if (split == null) {
+        return null;
+      }
+      S result = createSplit(split, index);
+      this.index += split.getExactSizeIfKnown();
+      return result;
+    }
+
+    @Override
+    public long estimateSize() {
+      return fromSpliterator.estimateSize();
+    }
+
+    @Override
+    public int characteristics() {
+      return fromSpliterator.characteristics()
+          & (Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED);
+    }
+  }
+
+  /**
+   * An analogue of {@link java.util.function.IntFunction} also accepting an index.
+   *
+   * <p>This interface is only intended for use by callers of {@link #mapWithIndex(IntStream,
+   * IntFunctionWithIndex)}.
+   *
+   * @since 21.0
+   */
+  @Beta
+  public interface IntFunctionWithIndex<R> {
+    /** Applies this function to the given argument and its index within a stream. */
+    R apply(int from, long index);
+  }
+
+  /**
+   * An analogue of {@link java.util.function.LongFunction} also accepting an index.
+   *
+   * <p>This interface is only intended for use by callers of {@link #mapWithIndex(LongStream,
+   * LongFunctionWithIndex)}.
+   *
+   * @since 21.0
+   */
+  @Beta
+  public interface LongFunctionWithIndex<R> {
+    /** Applies this function to the given argument and its index within a stream. */
+    R apply(long from, long index);
+  }
+
+  /**
    * An analogue of {@link java.util.function.DoubleFunction} also accepting an index.
    *
    * <p>This interface is only intended for use by callers of {@link #mapWithIndex(DoubleStream,
@@ -753,7 +753,7 @@ public final class Streams {
       boolean set = false;
       T value = null;
 
-      void set(@NullableDecl T value) {
+      void set(@Nullable T value) {
         this.set = true;
         this.value = value;
       }

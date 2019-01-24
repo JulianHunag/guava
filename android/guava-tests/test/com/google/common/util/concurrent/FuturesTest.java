@@ -926,10 +926,6 @@ public class FuturesTest extends TestCase {
     }
   }
 
-  private static <I, O> FunctionSpy<I, O> spy(Function<I, O> delegate) {
-    return new FunctionSpy<>(delegate);
-  }
-
   private static <X extends Throwable, V> Function<X, V> unexpectedFunction() {
     return new Function<X, V>() {
       @Override
@@ -956,6 +952,10 @@ public class FuturesTest extends TestCase {
     void verifyCallCount(int expected) {
       assertThat(count).isEqualTo(expected);
     }
+  }
+
+  private static <I, O> FunctionSpy<I, O> spy(Function<I, O> delegate) {
+    return new FunctionSpy<>(delegate);
   }
 
   private static <X extends Throwable, V> AsyncFunctionSpy<X, V> spy(AsyncFunction<X, V> delegate) {
@@ -1004,6 +1004,15 @@ public class FuturesTest extends TestCase {
         catchingAsync(failingFuture, Throwable.class, fallback, directExecutor());
     assertEquals(20, getDone(faultTolerantFuture).intValue());
     fallback.verifyCallCount(1);
+  }
+
+  @GwtIncompatible // non-Throwable exceptionType
+  public void testCatchingAsync_inputCancelledWithoutFallback() throws Exception {
+    AsyncFunction<Throwable, Integer> fallback = unexpectedAsyncFunction();
+    ListenableFuture<Integer> originalFuture = immediateCancelledFuture();
+    ListenableFuture<Integer> faultTolerantFuture =
+        catchingAsync(originalFuture, IOException.class, fallback, directExecutor());
+    assertTrue(faultTolerantFuture.isCancelled());
   }
 
   public void testCatchingAsync_fallbackGeneratesRuntimeException() throws Exception {
@@ -1154,7 +1163,8 @@ public class FuturesTest extends TestCase {
     } catch (ExecutionException expected) {
       NullPointerException cause = (NullPointerException) expected.getCause();
       assertThat(cause)
-          .hasMessage(
+          .hasMessageThat()
+          .contains(
               "AsyncFunction.apply returned null instead of a Future. "
                   + "Did you mean to return immediateFuture(null)?");
     }
@@ -1283,6 +1293,15 @@ public class FuturesTest extends TestCase {
         catching(failingFuture, Throwable.class, fallback, directExecutor());
     assertEquals(20, getDone(faultTolerantFuture).intValue());
     fallback.verifyCallCount(1);
+  }
+
+  @GwtIncompatible // non-Throwable exceptionType
+  public void testCatching_inputCancelledWithoutFallback() throws Exception {
+    Function<IOException, Integer> fallback = unexpectedFunction();
+    ListenableFuture<Integer> originalFuture = immediateCancelledFuture();
+    ListenableFuture<Integer> faultTolerantFuture =
+        catching(originalFuture, IOException.class, fallback, directExecutor());
+    assertTrue(faultTolerantFuture.isCancelled());
   }
 
   public void testCatching_fallbackGeneratesRuntimeException() throws Exception {
@@ -1767,7 +1786,8 @@ public class FuturesTest extends TestCase {
     } catch (ExecutionException expected) {
       NullPointerException cause = (NullPointerException) expected.getCause();
       assertThat(cause)
-          .hasMessage(
+          .hasMessageThat()
+          .contains(
               "AsyncFunction.apply returned null instead of a Future. "
                   + "Did you mean to return immediateFuture(null)?");
     }
@@ -1875,7 +1895,8 @@ public class FuturesTest extends TestCase {
     } catch (ExecutionException expected) {
       NullPointerException cause = (NullPointerException) expected.getCause();
       assertThat(cause)
-          .hasMessage(
+          .hasMessageThat()
+          .contains(
               "AsyncCallable.call returned null instead of a Future. "
                   + "Did you mean to return immediateFuture(null)?");
     }
@@ -1999,7 +2020,8 @@ public class FuturesTest extends TestCase {
     } catch (ExecutionException expected) {
       NullPointerException cause = (NullPointerException) expected.getCause();
       assertThat(cause)
-          .hasMessage(
+          .hasMessageThat()
+          .contains(
               "AsyncCallable.call returned null instead of a Future. "
                   + "Did you mean to return immediateFuture(null)?");
     }
@@ -3791,7 +3813,7 @@ public class FuturesTest extends TestCase {
           getDone(future);
           fail();
         } catch (ExecutionException expected) {
-          assertThat(expected.getCause()).hasMessage("2L");
+          assertThat(expected).hasCauseThat().hasMessageThat().isEqualTo("2L");
         }
       }
       expectedResult++;

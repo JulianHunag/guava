@@ -64,7 +64,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * @since 2.0
  */
 @GwtCompatible(emulated = true)
-public abstract class ImmutableMultimap<K, V> extends AbstractMultimap<K, V>
+public abstract class ImmutableMultimap<K, V> extends BaseImmutableMultimap<K, V>
     implements Serializable {
 
   /** Returns an empty multimap. */
@@ -630,13 +630,14 @@ public abstract class ImmutableMultimap<K, V> extends AbstractMultimap<K, V>
       return true;
     }
 
-    // We can't label this with @Override, because it doesn't override anything
-    // in the GWT emulated version.
+    @GwtIncompatible
+    @Override
     Object writeReplace() {
       return new KeysSerializedForm(ImmutableMultimap.this);
     }
   }
-  
+
+  @GwtIncompatible
   private static final class KeysSerializedForm implements Serializable {
     final ImmutableMultimap<?, ?> multimap;
 

@@ -44,7 +44,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Utilities for working with {@link Type}.
@@ -86,7 +86,7 @@ final class Types {
    * {@code ownerType}.
    */
   static ParameterizedType newParameterizedTypeWithOwner(
-      @NullableDecl Type ownerType, Class<?> rawType, Type... arguments) {
+      @Nullable Type ownerType, Class<?> rawType, Type... arguments) {
     if (ownerType == null) {
       return newParameterizedType(rawType, arguments);
     }
@@ -105,15 +105,15 @@ final class Types {
   /** Decides what owner type to use for constructing {@link ParameterizedType} from a raw class. */
   private enum ClassOwnership {
     OWNED_BY_ENCLOSING_CLASS {
-      @NullableDecl
       @Override
+      @Nullable
       Class<?> getOwnerType(Class<?> rawType) {
         return rawType.getEnclosingClass();
       }
     },
     LOCAL_CLASS_HAS_NO_OWNER {
-      @NullableDecl
       @Override
+      @Nullable
       Class<?> getOwnerType(Class<?> rawType) {
         if (rawType.isLocalClass()) {
           return null;
@@ -123,8 +123,7 @@ final class Types {
       }
     };
 
-    @NullableDecl
-    abstract Class<?> getOwnerType(Class<?> rawType);
+    abstract @Nullable Class<?> getOwnerType(Class<?> rawType);
 
     static final ClassOwnership JVM_BEHAVIOR = detectJvmBehavior();
 
@@ -166,18 +165,13 @@ final class Types {
   /**
    * Returns human readable string representation of {@code type}.
    *
-   * <ul>
-   *   <li>For array type {@code Foo[]}, {@code "com.mypackage.Foo[]"} are returned.
-   *   <li>For any class, {@code theClass.getName()} are returned.
-   *   <li>For all other types, {@code type.toString()} are returned.
-   * </ul>
+   * <p>The format is subject to change.
    */
   static String toString(Type type) {
     return (type instanceof Class) ? ((Class<?>) type).getName() : type.toString();
   }
 
-  @NullableDecl
-  static Type getComponentType(Type type) {
+  static @Nullable Type getComponentType(Type type) {
     checkNotNull(type);
     final AtomicReference<Type> result = new AtomicReference<>();
     new TypeVisitor() {
@@ -208,8 +202,7 @@ final class Types {
    * Returns {@code ? extends X} if any of {@code bounds} is a subtype of {@code X[]}; or null
    * otherwise.
    */
-  @NullableDecl
-  private static Type subtypeOfComponentType(Type[] bounds) {
+  private static @Nullable Type subtypeOfComponentType(Type[] bounds) {
     for (Type bound : bounds) {
       Type componentType = getComponentType(bound);
       if (componentType != null) {
@@ -264,11 +257,11 @@ final class Types {
 
   private static final class ParameterizedTypeImpl implements ParameterizedType, Serializable {
 
-    @NullableDecl private final Type ownerType;
+    private final @Nullable Type ownerType;
     private final ImmutableList<Type> argumentsList;
     private final Class<?> rawType;
 
-    ParameterizedTypeImpl(@NullableDecl Type ownerType, Class<?> rawType, Type[] typeArguments) {
+    ParameterizedTypeImpl(@Nullable Type ownerType, Class<?> rawType, Type[] typeArguments) {
       checkNotNull(rawType);
       checkArgument(typeArguments.length == rawType.getTypeParameters().length);
       disallowPrimitiveType(typeArguments, "type parameter");
@@ -644,20 +637,20 @@ final class Types {
 
     abstract Type usedInGenericType(Type type);
 
-    String typeName(Type type) {
-      return Types.toString(type);
-    }
-
-    boolean jdkTypeDuplicatesOwnerName() {
-      return true;
-    }
-
     final ImmutableList<Type> usedInGenericType(Type[] types) {
       ImmutableList.Builder<Type> builder = ImmutableList.builder();
       for (Type type : types) {
         builder.add(usedInGenericType(type));
       }
       return builder.build();
+    }
+
+    String typeName(Type type) {
+      return Types.toString(type);
+    }
+
+    boolean jdkTypeDuplicatesOwnerName() {
+      return true;
     }
   }
 

@@ -21,7 +21,7 @@ import static jsinterop.annotations.JsPackage.GLOBAL;
 import java.util.concurrent.TimeUnit;
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsType;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** @author Jesse Wilson */
 final class Platform {
@@ -33,6 +33,7 @@ final class Platform {
     return matcher;
   }
 
+  @SuppressWarnings("GoodTime") // reading system time without TimeSource
   static long systemNanoTime() {
     // System.nanoTime() is not available in GWT, so we get milliseconds
     // and convert to nanos.
@@ -52,11 +53,21 @@ final class Platform {
   }
 
   @JsMethod
-  static native boolean stringIsNullOrEmpty(@NullableDecl String string) /*-{
+  static native boolean stringIsNullOrEmpty(@Nullable String string) /*-{
     return !string;
   }-*/;
 
-  @JsType(isNative = true, name = "Number", namespace = GLOBAL)
+  @JsMethod
+  static native String nullToEmpty(@Nullable String string) /*-{
+    return string || "";
+  }-*/;
+
+  @JsMethod
+  static native String emptyToNull(@Nullable String string) /*-{
+    return string || null;
+  }-*/;
+
+  @JsType(isNative = true, name = "number", namespace = GLOBAL)
   private interface Number {
     double toPrecision(int precision);
   }
@@ -65,8 +76,8 @@ final class Platform {
     throw new UnsupportedOperationException();
   }
 
-  static boolean usingJdkPatternCompiler() {
-    return false;
+  static boolean patternCompilerIsPcreLike() {
+    throw new UnsupportedOperationException();
   }
 
   private Platform() {}

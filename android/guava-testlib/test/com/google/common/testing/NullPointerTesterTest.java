@@ -85,8 +85,7 @@ public class NullPointerTesterTest extends TestCase {
       // null?  no problem
     }
 
-    public static void staticOneArgJsr305NullableCorrectlyDoesNotThrowNPE(
-        @javax.annotation.Nullable String s) {
+    public static void staticOneArgJsr305NullableCorrectlyDoesNotThrowNPE(@NullableDecl String s) {
       // null?  no problem
     }
 
@@ -484,13 +483,13 @@ public class NullPointerTesterTest extends TestCase {
       checkNotNull(s);
     }
 
+    public void twoMixedArgs(@NullableDecl Integer i, String s) {
+      checkNotNull(s);
+    }
+
     public void twoMixedArgsThrows(String s, @NullableDecl Integer i) {
       checkNotNull(s);
       doThrow(i);
-    }
-
-    public void twoMixedArgs(@NullableDecl Integer i, String s) {
-      checkNotNull(s);
     }
 
     public void twoMixedArgsThrows(@NullableDecl Integer i, String s) {
@@ -498,7 +497,7 @@ public class NullPointerTesterTest extends TestCase {
       doThrow(i);
     }
 
-    public void twoNullableArgs(@NullableDecl String s, @javax.annotation.Nullable Integer i) {}
+    public void twoNullableArgs(@NullableDecl String s, @NullableDecl Integer i) {}
 
     public void twoNullableArgsThrowsFirstArg(@NullableDecl String s, @NullableDecl Integer i) {
       doThrow(s);
@@ -1385,6 +1384,7 @@ public class NullPointerTesterTest extends TestCase {
   }
 
   static class OverridesEquals {
+    @SuppressWarnings("EqualsHashCode")
     @Override
     public boolean equals(Object o) {
       return true;

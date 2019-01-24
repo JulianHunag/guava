@@ -76,7 +76,7 @@ import java.util.stream.Stream;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Unit test for {@code Sets}.
@@ -929,6 +929,12 @@ public class SetsTest extends TestCase {
     }
 
     try {
+      Set<Set<Integer>> unused = powerSet(ContiguousSet.closed(0, Integer.MAX_VALUE / 2));
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+
+    try {
       powerSet(singleton(null));
       fail();
     } catch (NullPointerException expected) {
@@ -1074,7 +1080,7 @@ public class SetsTest extends TestCase {
    * same as the given comparator.
    */
   private static <E> void verifySortedSetContents(
-      SortedSet<E> set, Iterable<E> iterable, @NullableDecl Comparator<E> comparator) {
+      SortedSet<E> set, Iterable<E> iterable, @Nullable Comparator<E> comparator) {
     assertSame(comparator, set.comparator());
     verifySetContents(set, iterable);
   }
