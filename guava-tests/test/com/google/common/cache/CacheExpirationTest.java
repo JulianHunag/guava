@@ -19,6 +19,7 @@ import static com.google.common.cache.TestingRemovalListeners.countingRemovalLis
 import static com.google.common.truth.Truth.assertThat;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 
 import com.google.common.cache.TestingCacheLoaders.IdentityLoader;
 import com.google.common.cache.TestingRemovalListeners.CountingRemovalListener;
@@ -29,7 +30,6 @@ import com.google.common.util.concurrent.Callables;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import junit.framework.TestCase;
 
@@ -339,7 +339,7 @@ public class CacheExpirationTest extends TestCase {
     assertThat(keySet).containsExactly(2, 3, 4, 5, 6, 7, 8, 9, 0);
 
     // get(K, Callable) doesn't stop 2 from expiring
-    cache.get(2, Callables.returning(-2));
+    Integer unused = cache.get(2, Callables.returning(-2));
     CacheTesting.drainRecencyQueues(cache);
     ticker.advance(1, MILLISECONDS);
     assertThat(keySet).containsExactly(3, 4, 5, 6, 7, 8, 9, 0);
@@ -403,7 +403,7 @@ public class CacheExpirationTest extends TestCase {
 
     // get(K, Callable) fails to save 8, replace saves 6
     cache.asMap().replace(6, -6);
-    cache.get(8, Callables.returning(-8));
+    Integer unused = cache.get(8, Callables.returning(-8));
     CacheTesting.drainRecencyQueues(cache);
     ticker.advance(1, MILLISECONDS);
     assertThat(keySet).containsExactly(3, 6);
@@ -415,12 +415,12 @@ public class CacheExpirationTest extends TestCase {
         TestingRemovalListeners.queuingRemovalListener();
     Cache<Integer, Integer> cache =
         CacheBuilder.newBuilder()
-            .expireAfterAccess(1, TimeUnit.MINUTES)
+            .expireAfterAccess(1, MINUTES)
             .removalListener(listener)
             .ticker(ticker)
             .build();
     cache.put(1, 1);
-    ticker.advance(10, TimeUnit.MINUTES);
+    ticker.advance(10, MINUTES);
     cache.invalidateAll();
 
     assertThat(listener.poll().getCause()).isEqualTo(RemovalCause.EXPIRED);

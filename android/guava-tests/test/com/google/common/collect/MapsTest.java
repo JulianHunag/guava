@@ -16,24 +16,28 @@
 
 package com.google.common.collect;
 
+import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.collect.Maps.transformEntries;
 import static com.google.common.collect.Maps.transformValues;
 import static com.google.common.collect.Maps.unmodifiableNavigableMap;
+import static com.google.common.collect.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.collect.testing.Helpers.mapEntry;
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonMap;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Converter;
 import com.google.common.base.Equivalence;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Maps.EntryTransformer;
 import com.google.common.collect.Maps.ValueDifferenceImpl;
-import com.google.common.collect.SetsTest.Derived;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.NullPointerTester;
 import com.google.common.testing.SerializableTester;
@@ -62,6 +66,7 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentMap;
 import junit.framework.TestCase;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Unit test for {@code Maps}.
@@ -71,13 +76,15 @@ import junit.framework.TestCase;
  * @author Jared Levy
  */
 @GwtCompatible(emulated = true)
+@ElementTypesAreNonnullByDefault
+@SuppressWarnings("JUnitIncompatibleType") // Many intentional violations here.
 public class MapsTest extends TestCase {
 
   private static final Comparator<Integer> SOME_COMPARATOR = Collections.reverseOrder();
 
   public void testHashMap() {
     HashMap<Integer, Integer> map = Maps.newHashMap();
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
   }
 
   public void testHashMapWithInitialMap() {
@@ -94,17 +101,12 @@ public class MapsTest extends TestCase {
     original.put("a", 1);
     original.put("b", 2);
     original.put("c", 3);
-    HashMap<Object, Object> map =
-        Maps.newHashMap((Map<? extends Object, ? extends Object>) original);
+    HashMap<Object, Object> map = Maps.newHashMap(original);
     assertEquals(original, map);
   }
 
   public void testCapacityForNegativeSizeFails() {
-    try {
-      Maps.capacity(-1);
-      fail("Negative expected size must result in IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> Maps.capacity(-1));
   }
 
   /**
@@ -116,6 +118,7 @@ public class MapsTest extends TestCase {
    *
    * <p>This test may fail miserably on non-OpenJDK environments...
    */
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   @AndroidIncompatible // relies on assumptions about OpenJDK
   public void testNewHashMapWithExpectedSize_wontGrow() throws Exception {
@@ -125,11 +128,15 @@ public class MapsTest extends TestCase {
 
     for (int size = 1; size < 200; size++) {
       assertWontGrow(
-          size, Maps.newHashMapWithExpectedSize(size), Maps.newHashMapWithExpectedSize(size));
+          size,
+          new HashMap<>(),
+          Maps.newHashMapWithExpectedSize(size),
+          Maps.newHashMapWithExpectedSize(size));
     }
   }
 
   /** Same test as above but for newLinkedHashMapWithExpectedSize */
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   @AndroidIncompatible // relies on assumptions about OpenJDK
   public void testNewLinkedHashMapWithExpectedSize_wontGrow() throws Exception {
@@ -138,14 +145,20 @@ public class MapsTest extends TestCase {
     for (int size = 1; size < 200; size++) {
       assertWontGrow(
           size,
+          new LinkedHashMap<>(),
           Maps.newLinkedHashMapWithExpectedSize(size),
           Maps.newLinkedHashMapWithExpectedSize(size));
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   private static void assertWontGrow(
-      int size, HashMap<Object, Object> map1, HashMap<Object, Object> map2) throws Exception {
+      int size,
+      HashMap<Object, Object> referenceMap,
+      HashMap<Object, Object> map1,
+      HashMap<Object, Object> map2)
+      throws Exception {
     // Only start measuring table size after the first element inserted, to
     // deal with empty-map optimization.
     map1.put(0, null);
@@ -155,8 +168,8 @@ public class MapsTest extends TestCase {
     for (int i = 1; i < size; i++) {
       map1.put(i, null);
     }
-    assertThat(bucketsOf(map1))
-        .named("table size after adding " + size + " elements")
+    assertWithMessage("table size after adding " + size + " elements")
+        .that(bucketsOf(map1))
         .isEqualTo(initialBuckets);
 
     /*
@@ -164,11 +177,22 @@ public class MapsTest extends TestCase {
      * once; make sure that passes too.
      */
     map2.putAll(map1);
-    assertThat(bucketsOf(map1))
-        .named("table size after adding " + size + " elements")
+    assertWithMessage("table size after adding " + size + " elements")
+        .that(bucketsOf(map1))
         .isEqualTo(initialBuckets);
+
+    // Ensure that referenceMap, which doesn't use WithExpectedSize, ends up with the same table
+    // size as the other two maps. If it ended up with a smaller size that would imply that we
+    // computed the wrong initial capacity.
+    for (int i = 0; i < size; i++) {
+      referenceMap.put(i, null);
+    }
+    assertWithMessage("table size after adding " + size + " elements")
+        .that(initialBuckets)
+        .isAtMost(bucketsOf(referenceMap));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   private static int bucketsOf(HashMap<?, ?> hashMap) throws Exception {
     Field tableField = HashMap.class.getDeclaredField("table");
@@ -197,7 +221,7 @@ public class MapsTest extends TestCase {
 
   public void testLinkedHashMap() {
     LinkedHashMap<Integer, Integer> map = Maps.newLinkedHashMap();
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
   }
 
   @SuppressWarnings("serial")
@@ -244,25 +268,27 @@ public class MapsTest extends TestCase {
     assertEquals(original, map);
   }
 
+  // Intentionally using IdentityHashMap to test creation.
+  @SuppressWarnings("IdentityHashMapBoxing")
   public void testIdentityHashMap() {
     IdentityHashMap<Integer, Integer> map = Maps.newIdentityHashMap();
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
   }
 
   public void testConcurrentMap() {
     ConcurrentMap<Integer, Integer> map = Maps.newConcurrentMap();
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
   }
 
   public void testTreeMap() {
     TreeMap<Integer, Integer> map = Maps.newTreeMap();
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
     assertNull(map.comparator());
   }
 
   public void testTreeMapDerived() {
     TreeMap<Derived, Integer> map = Maps.newTreeMap();
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
     map.put(new Derived("foo"), 1);
     map.put(new Derived("bar"), 2);
     assertThat(map.keySet()).containsExactly(new Derived("bar"), new Derived("foo")).inOrder();
@@ -272,7 +298,7 @@ public class MapsTest extends TestCase {
 
   public void testTreeMapNonGeneric() {
     TreeMap<LegacyComparable, Integer> map = Maps.newTreeMap();
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
     map.put(new LegacyComparable("foo"), 1);
     map.put(new LegacyComparable("bar"), 2);
     assertThat(map.keySet())
@@ -284,7 +310,7 @@ public class MapsTest extends TestCase {
 
   public void testTreeMapWithComparator() {
     TreeMap<Integer, Integer> map = Maps.newTreeMap(SOME_COMPARATOR);
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
     assertSame(SOME_COMPARATOR, map.comparator());
   }
 
@@ -304,17 +330,15 @@ public class MapsTest extends TestCase {
 
   public void testEnumMap() {
     EnumMap<SomeEnum, Integer> map = Maps.newEnumMap(SomeEnum.class);
-    assertEquals(Collections.emptyMap(), map);
+    assertEquals(emptyMap(), map);
     map.put(SomeEnum.SOME_INSTANCE, 0);
-    assertEquals(Collections.singletonMap(SomeEnum.SOME_INSTANCE, 0), map);
+    assertEquals(singletonMap(SomeEnum.SOME_INSTANCE, 0), map);
   }
 
   public void testEnumMapNullClass() {
-    try {
-      Maps.<SomeEnum, Long>newEnumMap((Class<MapsTest.SomeEnum>) null);
-      fail("no exception thrown");
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(
+        NullPointerException.class,
+        () -> Maps.<SomeEnum, Long>newEnumMap((Class<MapsTest.SomeEnum>) null));
   }
 
   public void testEnumMapWithInitialEnumMap() {
@@ -340,15 +364,11 @@ public class MapsTest extends TestCase {
 
   public void testEnumMapWithInitialEmptyMap() {
     Map<SomeEnum, Integer> original = Maps.newHashMap();
-    try {
-      Maps.newEnumMap(original);
-      fail("Empty map must result in an IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> Maps.newEnumMap(original));
   }
 
   public void testToStringImplWithNullKeys() throws Exception {
-    Map<String, String> hashmap = Maps.newHashMap();
+    Map<@Nullable String, String> hashmap = Maps.newHashMap();
     hashmap.put("foo", "bar");
     hashmap.put(null, "baz");
 
@@ -356,20 +376,21 @@ public class MapsTest extends TestCase {
   }
 
   public void testToStringImplWithNullValues() throws Exception {
-    Map<String, String> hashmap = Maps.newHashMap();
+    Map<String, @Nullable String> hashmap = Maps.newHashMap();
     hashmap.put("foo", "bar");
     hashmap.put("baz", null);
 
     assertEquals(hashmap.toString(), Maps.toStringImpl(hashmap));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // NullPointerTester
   public void testNullPointerExceptions() {
     new NullPointerTester().testAllPublicStaticMethods(Maps.class);
   }
 
-  private static final Map<Integer, Integer> EMPTY = Collections.emptyMap();
-  private static final Map<Integer, Integer> SINGLETON = Collections.singletonMap(1, 2);
+  private static final Map<Integer, Integer> EMPTY = emptyMap();
+  private static final Map<Integer, Integer> SINGLETON = singletonMap(1, 2);
 
   public void testMapDifferenceEmptyEmpty() {
     MapDifference<Integer, Integer> diff = Maps.difference(EMPTY, EMPTY);
@@ -550,14 +571,14 @@ public class MapsTest extends TestCase {
     SortedMapDifference<Integer, String> diff1 = Maps.difference(left, right);
     assertFalse(diff1.areEqual());
     assertThat(diff1.entriesOnlyOnLeft().entrySet())
-        .containsExactly(Maps.immutableEntry(4, "d"), Maps.immutableEntry(2, "b"))
+        .containsExactly(immutableEntry(4, "d"), immutableEntry(2, "b"))
         .inOrder();
-    assertThat(diff1.entriesOnlyOnRight().entrySet()).contains(Maps.immutableEntry(6, "z"));
-    assertThat(diff1.entriesInCommon().entrySet()).contains(Maps.immutableEntry(1, "a"));
+    assertThat(diff1.entriesOnlyOnRight().entrySet()).contains(immutableEntry(6, "z"));
+    assertThat(diff1.entriesInCommon().entrySet()).contains(immutableEntry(1, "a"));
     assertThat(diff1.entriesDiffering().entrySet())
         .containsExactly(
-            Maps.immutableEntry(5, ValueDifferenceImpl.create("e", "g")),
-            Maps.immutableEntry(3, ValueDifferenceImpl.create("c", "f")))
+            immutableEntry(5, ValueDifferenceImpl.create("e", "g")),
+            immutableEntry(3, ValueDifferenceImpl.create("c", "f")))
         .inOrder();
     assertEquals(
         "not equal: only on left={4=d, 2=b}: only on right={6=z}: "
@@ -566,11 +587,11 @@ public class MapsTest extends TestCase {
 
     SortedMapDifference<Integer, String> diff2 = Maps.difference(right, left);
     assertFalse(diff2.areEqual());
-    assertThat(diff2.entriesOnlyOnLeft().entrySet()).contains(Maps.immutableEntry(6, "z"));
+    assertThat(diff2.entriesOnlyOnLeft().entrySet()).contains(immutableEntry(6, "z"));
     assertThat(diff2.entriesOnlyOnRight().entrySet())
-        .containsExactly(Maps.immutableEntry(2, "b"), Maps.immutableEntry(4, "d"))
+        .containsExactly(immutableEntry(2, "b"), immutableEntry(4, "d"))
         .inOrder();
-    assertThat(diff1.entriesInCommon().entrySet()).contains(Maps.immutableEntry(1, "a"));
+    assertThat(diff1.entriesInCommon().entrySet()).contains(immutableEntry(1, "a"));
     assertEquals(
         ImmutableMap.of(
             3, ValueDifferenceImpl.create("f", "c"),
@@ -592,30 +613,18 @@ public class MapsTest extends TestCase {
     left.put(6, "z");
     assertFalse(diff1.areEqual());
     assertThat(diff1.entriesOnlyOnLeft().entrySet())
-        .containsExactly(Maps.immutableEntry(2, "b"), Maps.immutableEntry(4, "d"))
+        .containsExactly(immutableEntry(2, "b"), immutableEntry(4, "d"))
         .inOrder();
-    assertThat(diff1.entriesOnlyOnRight().entrySet()).contains(Maps.immutableEntry(6, "z"));
-    assertThat(diff1.entriesInCommon().entrySet()).contains(Maps.immutableEntry(1, "a"));
+    assertThat(diff1.entriesOnlyOnRight().entrySet()).contains(immutableEntry(6, "z"));
+    assertThat(diff1.entriesInCommon().entrySet()).contains(immutableEntry(1, "a"));
     assertThat(diff1.entriesDiffering().entrySet())
         .containsExactly(
-            Maps.immutableEntry(3, ValueDifferenceImpl.create("c", "f")),
-            Maps.immutableEntry(5, ValueDifferenceImpl.create("e", "g")))
+            immutableEntry(3, ValueDifferenceImpl.create("c", "f")),
+            immutableEntry(5, ValueDifferenceImpl.create("e", "g")))
         .inOrder();
-    try {
-      diff1.entriesInCommon().put(7, "x");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      diff1.entriesOnlyOnLeft().put(7, "x");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      diff1.entriesOnlyOnRight().put(7, "x");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> diff1.entriesInCommon().put(7, "x"));
+    assertThrows(UnsupportedOperationException.class, () -> diff1.entriesOnlyOnLeft().put(7, "x"));
+    assertThrows(UnsupportedOperationException.class, () -> diff1.entriesOnlyOnRight().put(7, "x"));
   }
 
   public void testSortedMapDifferenceEquals() {
@@ -740,26 +749,11 @@ public class MapsTest extends TestCase {
 
   public void testAsMapSortedSubViewKeySetsDoNotSupportAdd() {
     SortedMap<String, Integer> map = Maps.asMap(new NonNavigableSortedSet(), LENGTH_FUNCTION);
-    try {
-      map.subMap("a", "z").keySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      map.tailMap("a").keySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      map.headMap("r").keySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      map.headMap("r").tailMap("m").keySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> map.subMap("a", "z").keySet().add("a"));
+    assertThrows(UnsupportedOperationException.class, () -> map.tailMap("a").keySet().add("a"));
+    assertThrows(UnsupportedOperationException.class, () -> map.headMap("r").keySet().add("a"));
+    assertThrows(
+        UnsupportedOperationException.class, () -> map.headMap("r").tailMap("m").keySet().add("a"));
   }
 
   public void testAsMapSortedEmpty() {
@@ -866,31 +860,17 @@ public class MapsTest extends TestCase {
   @GwtIncompatible // NavigableMap
   public void testAsMapNavigableSubViewKeySetsDoNotSupportAdd() {
     NavigableMap<String, Integer> map = Maps.asMap(Sets.<String>newTreeSet(), LENGTH_FUNCTION);
-    try {
-      map.descendingKeySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      map.subMap("a", true, "z", false).keySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      map.tailMap("a", true).keySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      map.headMap("r", true).keySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      map.headMap("r", false).tailMap("m", true).keySet().add("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> map.descendingKeySet().add("a"));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> map.subMap("a", true, "z", false).keySet().add("a"));
+    assertThrows(
+        UnsupportedOperationException.class, () -> map.tailMap("a", true).keySet().add("a"));
+    assertThrows(
+        UnsupportedOperationException.class, () -> map.headMap("r", true).keySet().add("a"));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> map.headMap("r", false).tailMap("m", true).keySet().add("a"));
   }
 
   @GwtIncompatible // NavigableMap
@@ -930,21 +910,15 @@ public class MapsTest extends TestCase {
   }
 
   public void testToMapWithNullKeys() {
-    Iterable<String> strings = Arrays.asList("one", null, "three");
-    try {
-      Maps.toMap(strings, Functions.constant("foo"));
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    Iterable<@Nullable String> strings = asList("one", null, "three");
+    assertThrows(
+        NullPointerException.class,
+        () -> Maps.toMap((Iterable<String>) strings, Functions.constant("foo")));
   }
 
   public void testToMapWithNullValues() {
     Iterable<String> strings = ImmutableList.of("one", "two", "three");
-    try {
-      Maps.toMap(strings, Functions.constant(null));
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> Maps.toMap(strings, Functions.constant(null)));
   }
 
   private static final ImmutableBiMap<Integer, String> INT_TO_STRING_MAP =
@@ -982,35 +956,30 @@ public class MapsTest extends TestCase {
 
   /** Can't create the map if more than one value maps to the same key. */
   public void testUniqueIndexDuplicates() {
-    try {
-      Map<Integer, String> unused =
-          Maps.uniqueIndex(ImmutableSet.of("one", "uno"), Functions.constant(1));
-      fail();
-    } catch (IllegalArgumentException expected) {
-      assertThat(expected.getMessage()).contains("Multimaps.index");
-    }
+    IllegalArgumentException expected =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> Maps.uniqueIndex(ImmutableSet.of("one", "uno"), Functions.constant(1)));
+    assertThat(expected.getMessage()).contains("Multimaps.index");
   }
 
   /** Null values are not allowed. */
   public void testUniqueIndexNullValue() {
-    List<String> listWithNull = Lists.newArrayList((String) null);
-    try {
-      Maps.uniqueIndex(listWithNull, Functions.constant(1));
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    List<@Nullable String> listWithNull = Lists.newArrayList((String) null);
+    assertThrows(
+        NullPointerException.class,
+        () -> Maps.uniqueIndex((List<String>) listWithNull, Functions.constant(1)));
   }
 
   /** Null keys aren't allowed either. */
   public void testUniqueIndexNullKey() {
     List<String> oneStringList = Lists.newArrayList("foo");
-    try {
-      Maps.uniqueIndex(oneStringList, Functions.constant(null));
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(
+        NullPointerException.class,
+        () -> Maps.uniqueIndex(oneStringList, Functions.constant(null)));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // Maps.fromProperties
   @SuppressWarnings("deprecation") // StringBufferInputStream
   public void testFromProperties() throws IOException {
@@ -1060,6 +1029,7 @@ public class MapsTest extends TestCase {
     assertNotSame(System.getProperty("java.version"), result.get("java.version"));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // Maps.fromProperties
   @SuppressWarnings("serial") // never serialized
   public void testFromPropertiesNullKey() {
@@ -1067,19 +1037,16 @@ public class MapsTest extends TestCase {
         new Properties() {
           @Override
           public Enumeration<?> propertyNames() {
-            return Iterators.asEnumeration(Arrays.asList(null, "first", "second").iterator());
+            return Iterators.asEnumeration(asList(null, "first", "second").iterator());
           }
         };
     properties.setProperty("first", "true");
     properties.setProperty("second", "null");
 
-    try {
-      Maps.fromProperties(properties);
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> Maps.fromProperties(properties));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // Maps.fromProperties
   @SuppressWarnings("serial") // never serialized
   public void testFromPropertiesNonStringKeys() {
@@ -1092,11 +1059,7 @@ public class MapsTest extends TestCase {
           }
         };
 
-    try {
-      Maps.fromProperties(properties);
-      fail();
-    } catch (ClassCastException expected) {
-    }
+    assertThrows(ClassCastException.class, () -> Maps.fromProperties(properties));
   }
 
   public void testAsConverter_nominal() throws Exception {
@@ -1127,11 +1090,7 @@ public class MapsTest extends TestCase {
             "one", 1,
             "two", 2);
     Converter<String, Integer> converter = Maps.asConverter(biMap);
-    try {
-      converter.convert("three");
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> converter.convert("three"));
   }
 
   public void testAsConverter_nullConversions() throws Exception {
@@ -1150,31 +1109,25 @@ public class MapsTest extends TestCase {
     biMap.put("two", 2);
     Converter<String, Integer> converter = Maps.asConverter(biMap);
 
-    assertSame(1, converter.convert("one"));
-    assertSame(2, converter.convert("two"));
-    try {
-      converter.convert("three");
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertEquals((Integer) 1, converter.convert("one"));
+    assertEquals((Integer) 2, converter.convert("two"));
+    assertThrows(IllegalArgumentException.class, () -> converter.convert("three"));
 
     biMap.put("three", 3);
 
-    assertSame(1, converter.convert("one"));
-    assertSame(2, converter.convert("two"));
-    assertSame(3, converter.convert("three"));
+    assertEquals((Integer) 1, converter.convert("one"));
+    assertEquals((Integer) 2, converter.convert("two"));
+    assertEquals((Integer) 3, converter.convert("three"));
   }
 
   public void testAsConverter_withNullMapping() throws Exception {
-    BiMap<String, Integer> biMap = HashBiMap.create();
+    BiMap<String, @Nullable Integer> biMap = HashBiMap.create();
     biMap.put("one", 1);
     biMap.put("two", 2);
     biMap.put("three", null);
-    try {
-      Maps.asConverter(biMap).convert("three");
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Maps.asConverter((BiMap<String, Integer>) biMap).convert("three"));
   }
 
   public void testAsConverter_toString() {
@@ -1213,88 +1166,46 @@ public class MapsTest extends TestCase {
     assertEquals(true, unmod.inverse().get("four").equals(4));
 
     /* UnsupportedOperationException on direct modifications. */
-    try {
-      unmod.put(4, "four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      unmod.forcePut(4, "four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      unmod.putAll(Collections.singletonMap(4, "four"));
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> unmod.put(4, "four"));
+    assertThrows(UnsupportedOperationException.class, () -> unmod.forcePut(4, "four"));
+    assertThrows(UnsupportedOperationException.class, () -> unmod.putAll(singletonMap(4, "four")));
 
     /* UnsupportedOperationException on indirect modifications. */
     BiMap<String, Number> inverse = unmod.inverse();
-    try {
-      inverse.put("four", 4);
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      inverse.forcePut("four", 4);
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      inverse.putAll(Collections.singletonMap("four", 4));
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> inverse.put("four", 4));
+    assertThrows(UnsupportedOperationException.class, () -> inverse.forcePut("four", 4));
+    assertThrows(
+        UnsupportedOperationException.class, () -> inverse.putAll(singletonMap("four", 4)));
     Set<String> values = unmod.values();
-    try {
-      values.remove("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> values.remove("four"));
     Set<Entry<Number, String>> entries = unmod.entrySet();
     Entry<Number, String> entry = entries.iterator().next();
-    try {
-      entry.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
     @SuppressWarnings("unchecked")
     Entry<Integer, String> entry2 = (Entry<Integer, String>) entries.toArray()[0];
-    try {
-      entry2.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> entry2.setValue("four"));
   }
 
   public void testImmutableEntry() {
-    Entry<String, Integer> e = Maps.immutableEntry("foo", 1);
+    Entry<String, Integer> e = immutableEntry("foo", 1);
     assertEquals("foo", e.getKey());
     assertEquals(1, (int) e.getValue());
-    try {
-      e.setValue(2);
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> e.setValue(2));
     assertEquals("foo=1", e.toString());
     assertEquals(101575, e.hashCode());
   }
 
   public void testImmutableEntryNull() {
-    Entry<String, Integer> e = Maps.immutableEntry((String) null, (Integer) null);
+    Entry<@Nullable String, @Nullable Integer> e = immutableEntry((String) null, (Integer) null);
     assertNull(e.getKey());
     assertNull(e.getValue());
-    try {
-      e.setValue(null);
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> e.setValue(null));
     assertEquals("null=null", e.toString());
     assertEquals(0, e.hashCode());
   }
 
   /** See {@link SynchronizedBiMapTest} for more tests. */
+  @J2ktIncompatible // Synchronized
   public void testSynchronizedBiMap() {
     BiMap<String, Integer> bimap = HashBiMap.create();
     bimap.put("one", 1);
@@ -1305,264 +1216,7 @@ public class MapsTest extends TestCase {
     assertEquals(ImmutableSet.of(1, 2, 3), sync.inverse().keySet());
   }
 
-  private static final Predicate<String> NOT_LENGTH_3 =
-      new Predicate<String>() {
-        @Override
-        public boolean apply(String input) {
-          return input == null || input.length() != 3;
-        }
-      };
-
-  private static final Predicate<Integer> EVEN =
-      new Predicate<Integer>() {
-        @Override
-        public boolean apply(Integer input) {
-          return input == null || input % 2 == 0;
-        }
-      };
-
-  private static final Predicate<Entry<String, Integer>> CORRECT_LENGTH =
-      new Predicate<Entry<String, Integer>>() {
-        @Override
-        public boolean apply(Entry<String, Integer> input) {
-          return input.getKey().length() == input.getValue();
-        }
-      };
-
-  private static final Function<Integer, Double> SQRT_FUNCTION =
-      new Function<Integer, Double>() {
-        @Override
-        public Double apply(Integer in) {
-          return Math.sqrt(in);
-        }
-      };
-
-  public static class FilteredMapTest extends TestCase {
-    Map<String, Integer> createUnfiltered() {
-      return Maps.newHashMap();
-    }
-
-    public void testFilteredKeysIllegalPut() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      Map<String, Integer> filtered = Maps.filterKeys(unfiltered, NOT_LENGTH_3);
-      filtered.put("a", 1);
-      filtered.put("b", 2);
-      assertEquals(ImmutableMap.of("a", 1, "b", 2), filtered);
-
-      try {
-        filtered.put("yyy", 3);
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-    }
-
-    public void testFilteredKeysIllegalPutAll() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      Map<String, Integer> filtered = Maps.filterKeys(unfiltered, NOT_LENGTH_3);
-      filtered.put("a", 1);
-      filtered.put("b", 2);
-      assertEquals(ImmutableMap.of("a", 1, "b", 2), filtered);
-
-      try {
-        filtered.putAll(ImmutableMap.of("c", 3, "zzz", 4, "b", 5));
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-
-      assertEquals(ImmutableMap.of("a", 1, "b", 2), filtered);
-    }
-
-    public void testFilteredKeysFilteredReflectsBackingChanges() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      Map<String, Integer> filtered = Maps.filterKeys(unfiltered, NOT_LENGTH_3);
-      unfiltered.put("two", 2);
-      unfiltered.put("three", 3);
-      unfiltered.put("four", 4);
-      assertEquals(ImmutableMap.of("two", 2, "three", 3, "four", 4), unfiltered);
-      assertEquals(ImmutableMap.of("three", 3, "four", 4), filtered);
-
-      unfiltered.remove("three");
-      assertEquals(ImmutableMap.of("two", 2, "four", 4), unfiltered);
-      assertEquals(ImmutableMap.of("four", 4), filtered);
-
-      unfiltered.clear();
-      assertEquals(ImmutableMap.of(), unfiltered);
-      assertEquals(ImmutableMap.of(), filtered);
-    }
-
-    public void testFilteredValuesIllegalPut() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      Map<String, Integer> filtered = Maps.filterValues(unfiltered, EVEN);
-      filtered.put("a", 2);
-      unfiltered.put("b", 4);
-      unfiltered.put("c", 5);
-      assertEquals(ImmutableMap.of("a", 2, "b", 4), filtered);
-
-      try {
-        filtered.put("yyy", 3);
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-      assertEquals(ImmutableMap.of("a", 2, "b", 4), filtered);
-    }
-
-    public void testFilteredValuesIllegalPutAll() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      Map<String, Integer> filtered = Maps.filterValues(unfiltered, EVEN);
-      filtered.put("a", 2);
-      unfiltered.put("b", 4);
-      unfiltered.put("c", 5);
-      assertEquals(ImmutableMap.of("a", 2, "b", 4), filtered);
-
-      try {
-        filtered.putAll(ImmutableMap.of("c", 4, "zzz", 5, "b", 6));
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-      assertEquals(ImmutableMap.of("a", 2, "b", 4), filtered);
-    }
-
-    public void testFilteredValuesIllegalSetValue() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      Map<String, Integer> filtered = Maps.filterValues(unfiltered, EVEN);
-      filtered.put("a", 2);
-      filtered.put("b", 4);
-      assertEquals(ImmutableMap.of("a", 2, "b", 4), filtered);
-
-      Entry<String, Integer> entry = filtered.entrySet().iterator().next();
-      try {
-        entry.setValue(5);
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-
-      assertEquals(ImmutableMap.of("a", 2, "b", 4), filtered);
-    }
-
-    public void testFilteredValuesClear() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      unfiltered.put("one", 1);
-      unfiltered.put("two", 2);
-      unfiltered.put("three", 3);
-      unfiltered.put("four", 4);
-      Map<String, Integer> filtered = Maps.filterValues(unfiltered, EVEN);
-      assertEquals(ImmutableMap.of("one", 1, "two", 2, "three", 3, "four", 4), unfiltered);
-      assertEquals(ImmutableMap.of("two", 2, "four", 4), filtered);
-
-      filtered.clear();
-      assertEquals(ImmutableMap.of("one", 1, "three", 3), unfiltered);
-      assertTrue(filtered.isEmpty());
-    }
-
-    public void testFilteredEntriesIllegalPut() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      unfiltered.put("cat", 3);
-      unfiltered.put("dog", 2);
-      unfiltered.put("horse", 5);
-      Map<String, Integer> filtered = Maps.filterEntries(unfiltered, CORRECT_LENGTH);
-      assertEquals(ImmutableMap.of("cat", 3, "horse", 5), filtered);
-
-      filtered.put("chicken", 7);
-      assertEquals(ImmutableMap.of("cat", 3, "horse", 5, "chicken", 7), filtered);
-
-      try {
-        filtered.put("cow", 7);
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-      assertEquals(ImmutableMap.of("cat", 3, "horse", 5, "chicken", 7), filtered);
-    }
-
-    public void testFilteredEntriesIllegalPutAll() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      unfiltered.put("cat", 3);
-      unfiltered.put("dog", 2);
-      unfiltered.put("horse", 5);
-      Map<String, Integer> filtered = Maps.filterEntries(unfiltered, CORRECT_LENGTH);
-      assertEquals(ImmutableMap.of("cat", 3, "horse", 5), filtered);
-
-      filtered.put("chicken", 7);
-      assertEquals(ImmutableMap.of("cat", 3, "horse", 5, "chicken", 7), filtered);
-
-      try {
-        filtered.putAll(ImmutableMap.of("sheep", 5, "cow", 7));
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-      assertEquals(ImmutableMap.of("cat", 3, "horse", 5, "chicken", 7), filtered);
-    }
-
-    public void testFilteredEntriesObjectPredicate() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      unfiltered.put("cat", 3);
-      unfiltered.put("dog", 2);
-      unfiltered.put("horse", 5);
-      Predicate<Object> predicate = Predicates.alwaysFalse();
-      Map<String, Integer> filtered = Maps.filterEntries(unfiltered, predicate);
-      assertTrue(filtered.isEmpty());
-    }
-
-    public void testFilteredEntriesWildCardEntryPredicate() {
-      Map<String, Integer> unfiltered = createUnfiltered();
-      unfiltered.put("cat", 3);
-      unfiltered.put("dog", 2);
-      unfiltered.put("horse", 5);
-      Predicate<Entry<?, ?>> predicate =
-          new Predicate<Entry<?, ?>>() {
-            @Override
-            public boolean apply(Entry<?, ?> input) {
-              return "cat".equals(input.getKey()) || Integer.valueOf(2) == input.getValue();
-            }
-          };
-      Map<String, Integer> filtered = Maps.filterEntries(unfiltered, predicate);
-      assertEquals(ImmutableMap.of("cat", 3, "dog", 2), filtered);
-    }
-  }
-
-  public static class FilteredSortedMapTest extends FilteredMapTest {
-    @Override
-    SortedMap<String, Integer> createUnfiltered() {
-      return Maps.newTreeMap();
-    }
-
-    public void testFirstAndLastKeyFilteredMap() {
-      SortedMap<String, Integer> unfiltered = createUnfiltered();
-      unfiltered.put("apple", 2);
-      unfiltered.put("banana", 6);
-      unfiltered.put("cat", 3);
-      unfiltered.put("dog", 5);
-
-      SortedMap<String, Integer> filtered = Maps.filterEntries(unfiltered, CORRECT_LENGTH);
-      assertEquals("banana", filtered.firstKey());
-      assertEquals("cat", filtered.lastKey());
-    }
-
-    public void testHeadSubTailMap_FilteredMap() {
-      SortedMap<String, Integer> unfiltered = createUnfiltered();
-      unfiltered.put("apple", 2);
-      unfiltered.put("banana", 6);
-      unfiltered.put("cat", 4);
-      unfiltered.put("dog", 3);
-      SortedMap<String, Integer> filtered = Maps.filterEntries(unfiltered, CORRECT_LENGTH);
-
-      assertEquals(ImmutableMap.of("banana", 6), filtered.headMap("dog"));
-      assertEquals(ImmutableMap.of(), filtered.headMap("banana"));
-      assertEquals(ImmutableMap.of("banana", 6, "dog", 3), filtered.headMap("emu"));
-
-      assertEquals(ImmutableMap.of("banana", 6), filtered.subMap("banana", "dog"));
-      assertEquals(ImmutableMap.of("dog", 3), filtered.subMap("cat", "emu"));
-
-      assertEquals(ImmutableMap.of("dog", 3), filtered.tailMap("cat"));
-      assertEquals(ImmutableMap.of("banana", 6, "dog", 3), filtered.tailMap("banana"));
-    }
-  }
-
-  public static class FilteredBiMapTest extends FilteredMapTest {
-    @Override
-    BiMap<String, Integer> createUnfiltered() {
-      return HashBiMap.create();
-    }
-  }
+  private static final Function<Integer, Double> SQRT_FUNCTION = in -> Math.sqrt(in);
 
   public void testTransformValues() {
     Map<String, Integer> map = ImmutableMap.of("a", 4, "b", 9);
@@ -1738,92 +1392,62 @@ public class MapsTest extends TestCase {
     ensureNotDirectlyModifiable(unmod.tailMap(2, true));
 
     Collection<String> values = unmod.values();
-    try {
-      values.add("4");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      values.remove("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      values.removeAll(Collections.singleton("four"));
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      values.retainAll(Collections.singleton("four"));
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
-    try {
-      Iterator<String> iterator = values.iterator();
-      iterator.next();
-      iterator.remove();
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> values.add("4"));
+    assertThrows(UnsupportedOperationException.class, () -> values.remove("four"));
+    assertThrows(UnsupportedOperationException.class, () -> values.removeAll(singleton("four")));
+    assertThrows(UnsupportedOperationException.class, () -> values.retainAll(singleton("four")));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> {
+          Iterator<String> iterator = values.iterator();
+          iterator.next();
+          iterator.remove();
+        });
 
     Set<Entry<Integer, String>> entries = unmod.entrySet();
-    try {
-      Iterator<Entry<Integer, String>> iterator = entries.iterator();
-      iterator.next();
-      iterator.remove();
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> {
+          Iterator<Entry<Integer, String>> iterator = entries.iterator();
+          iterator.next();
+          iterator.remove();
+        });
+    {
     Entry<Integer, String> entry = entries.iterator().next();
-    try {
-      entry.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
+      assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
     }
-    entry = unmod.lowerEntry(1);
+    {
+      Entry<Integer, String> entry = unmod.lowerEntry(1);
     assertNull(entry);
-    entry = unmod.floorEntry(2);
-    try {
-      entry.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
     }
-    entry = unmod.ceilingEntry(2);
-    try {
-      entry.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
+    {
+      Entry<Integer, String> entry = unmod.floorEntry(2);
+      assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
     }
-    entry = unmod.lowerEntry(2);
-    try {
-      entry.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
+    {
+      Entry<Integer, String> entry = unmod.ceilingEntry(2);
+      assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
     }
-    entry = unmod.higherEntry(2);
-    try {
-      entry.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
+    {
+      Entry<Integer, String> entry = unmod.lowerEntry(2);
+      assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
     }
-    entry = unmod.firstEntry();
-    try {
-      entry.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
+    {
+      Entry<Integer, String> entry = unmod.higherEntry(2);
+      assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
     }
-    entry = unmod.lastEntry();
-    try {
-      entry.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
+    {
+      Entry<Integer, String> entry = unmod.firstEntry();
+      assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
     }
-    @SuppressWarnings("unchecked")
-    Entry<Integer, String> entry2 = (Entry<Integer, String>) entries.toArray()[0];
-    try {
-      entry2.setValue("four");
-      fail("UnsupportedOperationException expected");
-    } catch (UnsupportedOperationException expected) {
+    {
+      Entry<Integer, String> entry = unmod.lastEntry();
+      assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
+    }
+    {
+      @SuppressWarnings("unchecked")
+      Entry<Integer, String> entry = (Entry<Integer, String>) entries.toArray()[0];
+      assertThrows(UnsupportedOperationException.class, () -> entry.setValue("four"));
     }
   }
 
@@ -1835,7 +1459,7 @@ public class MapsTest extends TestCase {
     } catch (UnsupportedOperationException expected) {
     }
     try {
-      unmod.putAll(Collections.singletonMap(4, "four"));
+      unmod.putAll(singletonMap(4, "four"));
       fail("UnsupportedOperationException expected");
     } catch (UnsupportedOperationException expected) {
     }
@@ -1931,11 +1555,7 @@ public class MapsTest extends TestCase {
             .put(10, 0)
             .build();
 
-    try {
-      Maps.subMap(map, Range.closed(4, 8));
-      fail("IllegalArgumentException expected");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> Maps.subMap(map, Range.closed(4, 8)));
 
     // These results are all incorrect, but there's no way (short of iterating over the result)
     // to verify that with an arbitrary ordering or comparator.

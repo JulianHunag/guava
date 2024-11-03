@@ -17,11 +17,9 @@ package com.google.common.primitives;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.base.Preconditions;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
-import com.google.errorprone.annotations.CheckReturnValue;
 import com.google.errorprone.annotations.Immutable;
 import java.io.Serializable;
 import java.util.AbstractList;
@@ -33,7 +31,7 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
-import org.checkerframework.checker.nullness.qual.Nullable;
+import javax.annotation.CheckForNull;
 
 /**
  * An immutable array of {@code int} values, with an API resembling {@link List}.
@@ -41,8 +39,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * <p>Advantages compared to {@code int[]}:
  *
  * <ul>
- *   <li>All the many well-known advantages of immutability (read <i>Effective Java</i>, second
- *       edition, Item 15).
+ *   <li>All the many well-known advantages of immutability (read <i>Effective Java</i>, third
+ *       edition, Item 17).
  *   <li>Has the value-based (not identity-based) {@link #equals}, {@link #hashCode}, and {@link
  *       #toString} behavior you expect.
  *   <li>Offers useful operations beyond just {@code get} and {@code length}, so you don't have to
@@ -85,9 +83,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  *
  * @since 22.0
  */
-@Beta
 @GwtCompatible
 @Immutable
+@ElementTypesAreNonnullByDefault
 public final class ImmutableIntArray implements Serializable {
   private static final ImmutableIntArray EMPTY = new ImmutableIntArray(new int[0]);
 
@@ -137,8 +135,7 @@ public final class ImmutableIntArray implements Serializable {
   // okay since we have to copy the just-created array anyway.
   public static ImmutableIntArray of(int first, int... rest) {
     checkArgument(
-        rest.length <= Integer.MAX_VALUE - 1,
-        "the total number of elements must fit in an int");
+        rest.length <= Integer.MAX_VALUE - 1, "the total number of elements must fit in an int");
     int[] array = new int[rest.length + 1];
     array[0] = first;
     System.arraycopy(rest, 0, array, 1, rest.length);
@@ -169,7 +166,11 @@ public final class ImmutableIntArray implements Serializable {
     return builder().addAll(values).build();
   }
 
-  /** Returns an immutable array containing all the values from {@code stream}, in order. */
+  /**
+   * Returns an immutable array containing all the values from {@code stream}, in order.
+   *
+   * @since 22.0 (but only since 33.4.0 in the Android flavor)
+   */
   public static ImmutableIntArray copyOf(IntStream stream) {
     // Note this uses very different growth behavior from copyOf(Iterable) and the builder.
     int[] array = stream.toArray();
@@ -207,7 +208,6 @@ public final class ImmutableIntArray implements Serializable {
    * A builder for {@link ImmutableIntArray} instances; obtained using {@link
    * ImmutableIntArray#builder}.
    */
-  @CanIgnoreReturnValue
   public static final class Builder {
     private int[] array;
     private int count = 0; // <= array.length
@@ -220,6 +220,7 @@ public final class ImmutableIntArray implements Serializable {
      * Appends {@code value} to the end of the values the built {@link ImmutableIntArray} will
      * contain.
      */
+    @CanIgnoreReturnValue
     public Builder add(int value) {
       ensureRoomFor(1);
       array[count] = value;
@@ -231,6 +232,7 @@ public final class ImmutableIntArray implements Serializable {
      * Appends {@code values}, in order, to the end of the values the built {@link
      * ImmutableIntArray} will contain.
      */
+    @CanIgnoreReturnValue
     public Builder addAll(int[] values) {
       ensureRoomFor(values.length);
       System.arraycopy(values, 0, array, count, values.length);
@@ -242,6 +244,7 @@ public final class ImmutableIntArray implements Serializable {
      * Appends {@code values}, in order, to the end of the values the built {@link
      * ImmutableIntArray} will contain.
      */
+    @CanIgnoreReturnValue
     public Builder addAll(Iterable<Integer> values) {
       if (values instanceof Collection) {
         return addAll((Collection<Integer>) values);
@@ -256,6 +259,7 @@ public final class ImmutableIntArray implements Serializable {
      * Appends {@code values}, in order, to the end of the values the built {@link
      * ImmutableIntArray} will contain.
      */
+    @CanIgnoreReturnValue
     public Builder addAll(Collection<Integer> values) {
       ensureRoomFor(values.size());
       for (Integer value : values) {
@@ -267,7 +271,10 @@ public final class ImmutableIntArray implements Serializable {
     /**
      * Appends all values from {@code stream}, in order, to the end of the values the built {@link
      * ImmutableIntArray} will contain.
+     *
+     * @since 22.0 (but only since 33.4.0 in the Android flavor)
      */
+    @CanIgnoreReturnValue
     public Builder addAll(IntStream stream) {
       Spliterator.OfInt spliterator = stream.spliterator();
       long size = spliterator.getExactSizeIfKnown();
@@ -282,6 +289,7 @@ public final class ImmutableIntArray implements Serializable {
      * Appends {@code values}, in order, to the end of the values the built {@link
      * ImmutableIntArray} will contain.
      */
+    @CanIgnoreReturnValue
     public Builder addAll(ImmutableIntArray values) {
       ensureRoomFor(values.length());
       System.arraycopy(values.array, values.start, array, count, values.length());
@@ -292,9 +300,7 @@ public final class ImmutableIntArray implements Serializable {
     private void ensureRoomFor(int numberToAdd) {
       int newCount = count + numberToAdd; // TODO(kevinb): check overflow now?
       if (newCount > array.length) {
-        int[] newArray = new int[expandedCapacity(array.length, newCount)];
-        System.arraycopy(array, 0, newArray, 0, count);
-        this.array = newArray;
+        array = Arrays.copyOf(array, expandedCapacity(array.length, newCount));
       }
     }
 
@@ -322,7 +328,6 @@ public final class ImmutableIntArray implements Serializable {
      * no data is copied as part of this step, but this may occupy more memory than strictly
      * necessary. To copy the data to a right-sized backing array, use {@code .build().trimmed()}.
      */
-    @CheckReturnValue
     public ImmutableIntArray build() {
       return count == 0 ? EMPTY : new ImmutableIntArray(array, 0, count);
     }
@@ -409,7 +414,11 @@ public final class ImmutableIntArray implements Serializable {
     return indexOf(target) >= 0;
   }
 
-  /** Invokes {@code consumer} for each value contained in this array, in order. */
+  /**
+   * Invokes {@code consumer} for each value contained in this array, in order.
+   *
+   * @since 22.0 (but only since 33.4.0 in the Android flavor)
+   */
   public void forEach(IntConsumer consumer) {
     checkNotNull(consumer);
     for (int i = start; i < end; i++) {
@@ -417,7 +426,11 @@ public final class ImmutableIntArray implements Serializable {
     }
   }
 
-  /** Returns a stream over the values in this array, in order. */
+  /**
+   * Returns a stream over the values in this array, in order.
+   *
+   * @since 22.0 (but only since 33.4.0 in the Android flavor)
+   */
   public IntStream stream() {
     return Arrays.stream(array, start, end);
   }
@@ -441,7 +454,11 @@ public final class ImmutableIntArray implements Serializable {
         : new ImmutableIntArray(array, start + startIndex, start + endIndex);
   }
 
-  private Spliterator.OfInt spliterator() {
+  /*
+   * We declare this as package-private, rather than private, to avoid generating a synthetic
+   * accessor method (under -target 8) that would lack the Android flavor's @IgnoreJRERequirement.
+   */
+  Spliterator.OfInt spliterator() {
     return Spliterators.spliterator(array, start, end, Spliterator.IMMUTABLE | Spliterator.ORDERED);
   }
 
@@ -481,17 +498,17 @@ public final class ImmutableIntArray implements Serializable {
     }
 
     @Override
-    public boolean contains(Object target) {
+    public boolean contains(@CheckForNull Object target) {
       return indexOf(target) >= 0;
     }
 
     @Override
-    public int indexOf(Object target) {
+    public int indexOf(@CheckForNull Object target) {
       return target instanceof Integer ? parent.indexOf((Integer) target) : -1;
     }
 
     @Override
-    public int lastIndexOf(Object target) {
+    public int lastIndexOf(@CheckForNull Object target) {
       return target instanceof Integer ? parent.lastIndexOf((Integer) target) : -1;
     }
 
@@ -507,7 +524,7 @@ public final class ImmutableIntArray implements Serializable {
     }
 
     @Override
-    public boolean equals(@Nullable Object object) {
+    public boolean equals(@CheckForNull Object object) {
       if (object instanceof AsList) {
         AsList that = (AsList) object;
         return this.parent.equals(that.parent);
@@ -547,7 +564,7 @@ public final class ImmutableIntArray implements Serializable {
    * values as this one, in the same order.
    */
   @Override
-  public boolean equals(@Nullable Object object) {
+  public boolean equals(@CheckForNull Object object) {
     if (object == this) {
       return true;
     }

@@ -23,13 +23,16 @@ import static com.google.common.math.MathTesting.EXPONENTS;
 import static com.google.common.math.MathTesting.NEGATIVE_INTEGER_CANDIDATES;
 import static com.google.common.math.MathTesting.NONZERO_INTEGER_CANDIDATES;
 import static com.google.common.math.MathTesting.POSITIVE_INTEGER_CANDIDATES;
+import static com.google.common.math.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.math.TestPlatform.intsCanGoOutOfRange;
+import static java.lang.Math.min;
 import static java.math.BigInteger.valueOf;
 import static java.math.RoundingMode.FLOOR;
 import static java.math.RoundingMode.UNNECESSARY;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.testing.NullPointerTester;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -58,11 +61,7 @@ public class IntMathTest extends TestCase {
       if (fitsInInt(expectedResult)) {
         assertEquals(expectedResult.intValue(), IntMath.ceilingPowerOfTwo(x));
       } else {
-        try {
-          IntMath.ceilingPowerOfTwo(x);
-          fail("Expected ArithmeticException");
-        } catch (ArithmeticException expected) {
-        }
+        assertThrows(ArithmeticException.class, () -> IntMath.ceilingPowerOfTwo(x));
       }
     }
   }
@@ -76,38 +75,22 @@ public class IntMathTest extends TestCase {
 
   public void testCeilingPowerOfTwoNegative() {
     for (int x : NEGATIVE_INTEGER_CANDIDATES) {
-      try {
-        IntMath.ceilingPowerOfTwo(x);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+      assertThrows(IllegalArgumentException.class, () -> IntMath.ceilingPowerOfTwo(x));
     }
   }
 
   public void testFloorPowerOfTwoNegative() {
     for (int x : NEGATIVE_INTEGER_CANDIDATES) {
-      try {
-        IntMath.floorPowerOfTwo(x);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+      assertThrows(IllegalArgumentException.class, () -> IntMath.floorPowerOfTwo(x));
     }
   }
 
   public void testCeilingPowerOfTwoZero() {
-    try {
-      IntMath.ceilingPowerOfTwo(0);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> IntMath.ceilingPowerOfTwo(0));
   }
 
   public void testFloorPowerOfTwoZero() {
-    try {
-      IntMath.floorPowerOfTwo(0);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> IntMath.floorPowerOfTwo(0));
   }
 
   @GwtIncompatible // BigIntegerMath // TODO(cpovirk): GWT-enable BigIntegerMath
@@ -137,10 +120,11 @@ public class IntMathTest extends TestCase {
   @GwtIncompatible // BigIntegerMath // TODO(cpovirk): GWT-enable BigIntegerMath
   public void testConstantsHalfPowersOf10() {
     for (int i = 0; i < IntMath.halfPowersOf10.length; i++) {
-      assert IntMath.halfPowersOf10[i]
-          == Math.min(
+      assertEquals(
+          IntMath.halfPowersOf10[i],
+          min(
               Integer.MAX_VALUE,
-              BigIntegerMath.sqrt(BigInteger.TEN.pow(2 * i + 1), FLOOR).longValue());
+              BigIntegerMath.sqrt(BigInteger.TEN.pow(2 * i + 1), FLOOR).longValue()));
     }
   }
 
@@ -191,27 +175,19 @@ public class IntMathTest extends TestCase {
 
   public void testLog2ZeroAlwaysThrows() {
     for (RoundingMode mode : ALL_ROUNDING_MODES) {
-      try {
-        IntMath.log2(0, mode);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+      assertThrows(IllegalArgumentException.class, () -> IntMath.log2(0, mode));
     }
   }
 
   public void testLog2NegativeAlwaysThrows() {
     for (int x : NEGATIVE_INTEGER_CANDIDATES) {
       for (RoundingMode mode : ALL_ROUNDING_MODES) {
-        try {
-          IntMath.log2(x, mode);
-          fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException expected) {
-        }
+        assertThrows(IllegalArgumentException.class, () -> IntMath.log2(x, mode));
       }
     }
   }
 
-  // Relies on the correctness of BigIntegrerMath.log2 for all modes except UNNECESSARY.
+  // Relies on the correctness of BigIntegerMath.log2 for all modes except UNNECESSARY.
   public void testLog2MatchesBigInteger() {
     for (int x : POSITIVE_INTEGER_CANDIDATES) {
       for (RoundingMode mode : ALL_SAFE_ROUNDING_MODES) {
@@ -237,11 +213,7 @@ public class IntMathTest extends TestCase {
   @GwtIncompatible // log10
   public void testLog10ZeroAlwaysThrows() {
     for (RoundingMode mode : ALL_ROUNDING_MODES) {
-      try {
-        IntMath.log10(0, mode);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+      assertThrows(IllegalArgumentException.class, () -> IntMath.log10(0, mode));
     }
   }
 
@@ -249,11 +221,7 @@ public class IntMathTest extends TestCase {
   public void testLog10NegativeAlwaysThrows() {
     for (int x : NEGATIVE_INTEGER_CANDIDATES) {
       for (RoundingMode mode : ALL_ROUNDING_MODES) {
-        try {
-          IntMath.log10(x, mode);
-          fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException expected) {
-        }
+        assertThrows(IllegalArgumentException.class, () -> IntMath.log10(x, mode));
       }
     }
   }
@@ -304,11 +272,7 @@ public class IntMathTest extends TestCase {
   public void testSqrtNegativeAlwaysThrows() {
     for (int x : NEGATIVE_INTEGER_CANDIDATES) {
       for (RoundingMode mode : RoundingMode.values()) {
-        try {
-          IntMath.sqrt(x, mode);
-          fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException expected) {
-        }
+        assertThrows(IllegalArgumentException.class, () -> IntMath.sqrt(x, mode));
       }
     }
   }
@@ -399,11 +363,7 @@ public class IntMathTest extends TestCase {
   public void testDivByZeroAlwaysFails() {
     for (int p : ALL_INTEGER_CANDIDATES) {
       for (RoundingMode mode : ALL_ROUNDING_MODES) {
-        try {
-          IntMath.divide(p, 0, mode);
-          fail("Expected ArithmeticException");
-        } catch (ArithmeticException expected) {
-        }
+        assertThrows(ArithmeticException.class, () -> IntMath.divide(p, 0, mode));
       }
     }
   }
@@ -419,22 +379,14 @@ public class IntMathTest extends TestCase {
   public void testModNegativeModulusFails() {
     for (int x : POSITIVE_INTEGER_CANDIDATES) {
       for (int m : NEGATIVE_INTEGER_CANDIDATES) {
-        try {
-          IntMath.mod(x, m);
-          fail("Expected ArithmeticException");
-        } catch (ArithmeticException expected) {
-        }
+        assertThrows(ArithmeticException.class, () -> IntMath.mod(x, m));
       }
     }
   }
 
   public void testModZeroModulusFails() {
     for (int x : ALL_INTEGER_CANDIDATES) {
-      try {
-        IntMath.mod(x, 0);
-        fail("Expected ArithmeticException");
-      } catch (ArithmeticException expected) {
-      }
+      assertThrows(ArithmeticException.class, () -> IntMath.mod(x, 0));
     }
   }
 
@@ -456,31 +408,15 @@ public class IntMathTest extends TestCase {
 
   public void testGCDNegativePositiveThrows() {
     for (int a : NEGATIVE_INTEGER_CANDIDATES) {
-      try {
-        IntMath.gcd(a, 3);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
-      try {
-        IntMath.gcd(3, a);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+      assertThrows(IllegalArgumentException.class, () -> IntMath.gcd(a, 3));
+      assertThrows(IllegalArgumentException.class, () -> IntMath.gcd(3, a));
     }
   }
 
   public void testGCDNegativeZeroThrows() {
     for (int a : NEGATIVE_INTEGER_CANDIDATES) {
-      try {
-        IntMath.gcd(a, 0);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
-      try {
-        IntMath.gcd(0, a);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+      assertThrows(IllegalArgumentException.class, () -> IntMath.gcd(a, 0));
+      assertThrows(IllegalArgumentException.class, () -> IntMath.gcd(0, a));
     }
   }
 
@@ -628,11 +564,7 @@ public class IntMathTest extends TestCase {
 
   public void testFactorialNegative() {
     for (int n : NEGATIVE_INTEGER_CANDIDATES) {
-      try {
-        IntMath.factorial(n);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+      assertThrows(IllegalArgumentException.class, () -> IntMath.factorial(n));
     }
   }
 
@@ -648,27 +580,16 @@ public class IntMathTest extends TestCase {
   }
 
   public void testBinomialOutside() {
-    for (int n = 0; n <= 50; n++) {
-      try {
-        IntMath.binomial(n, -1);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
-      try {
-        IntMath.binomial(n, n + 1);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+    for (int i = 0; i <= 50; i++) {
+      final int n = i;
+      assertThrows(IllegalArgumentException.class, () -> IntMath.binomial(n, -1));
+      assertThrows(IllegalArgumentException.class, () -> IntMath.binomial(n, n + 1));
     }
   }
 
   public void testBinomialNegative() {
-    for (int n : NEGATIVE_INTEGER_CANDIDATES) {
-      try {
-        IntMath.binomial(n, 0);
-        fail("Expected IllegalArgumentException");
-      } catch (IllegalArgumentException expected) {
-      }
+    for (final int n : NEGATIVE_INTEGER_CANDIDATES) {
+      assertThrows(IllegalArgumentException.class, () -> IntMath.binomial(n, 0));
     }
   }
 
@@ -744,6 +665,7 @@ public class IntMathTest extends TestCase {
     return big.bitLength() <= 31;
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // NullPointerTester
   public void testNullPointers() {
     NullPointerTester tester = new NullPointerTester();

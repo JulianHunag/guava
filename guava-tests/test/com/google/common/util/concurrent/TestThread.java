@@ -17,6 +17,7 @@
 package com.google.common.util.concurrent;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
@@ -26,7 +27,6 @@ import com.google.common.testing.TearDown;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import junit.framework.AssertionFailedError;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -58,7 +58,7 @@ public final class TestThread<L> extends Thread implements TearDown {
   private final SynchronousQueue<Request> requestQueue = new SynchronousQueue<>();
   private final SynchronousQueue<Response> responseQueue = new SynchronousQueue<>();
 
-  private Throwable uncaughtThrowable = null;
+  private @Nullable Throwable uncaughtThrowable = null;
 
   public TestThread(L lockLikeObject, String threadName) {
     super(threadName);
@@ -77,9 +77,7 @@ public final class TestThread<L> extends Thread implements TearDown {
     join();
 
     if (uncaughtThrowable != null) {
-      throw (AssertionFailedError)
-          new AssertionFailedError("Uncaught throwable in " + getName())
-              .initCause(uncaughtThrowable);
+      throw new AssertionError("Uncaught throwable in " + getName(), uncaughtThrowable);
     }
   }
 
@@ -188,8 +186,7 @@ public final class TestThread<L> extends Thread implements TearDown {
    *     of time
    */
   private void sendRequest(String methodName, Object... arguments) throws Exception {
-    if (!requestQueue.offer(
-        new Request(methodName, arguments), TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+    if (!requestQueue.offer(new Request(methodName, arguments), TIMEOUT_MILLIS, MILLISECONDS)) {
       throw new TimeoutException();
     }
   }
@@ -203,7 +200,7 @@ public final class TestThread<L> extends Thread implements TearDown {
    *     this thread has called most recently
    */
   private Response getResponse(String methodName) throws Exception {
-    Response response = responseQueue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+    Response response = responseQueue.poll(TIMEOUT_MILLIS, MILLISECONDS);
     if (response == null) {
       throw new TimeoutException();
     }
@@ -275,7 +272,7 @@ public final class TestThread<L> extends Thread implements TearDown {
     final Object result;
     final Throwable throwable;
 
-    Response(String methodName, Object result, Throwable throwable) {
+    Response(String methodName, @Nullable Object result, @Nullable Throwable throwable) {
       this.methodName = methodName;
       this.result = result;
       this.throwable = throwable;
@@ -283,7 +280,7 @@ public final class TestThread<L> extends Thread implements TearDown {
 
     Object getResult() {
       if (throwable != null) {
-        throw (AssertionFailedError) new AssertionFailedError().initCause(throwable);
+        throw new AssertionError(throwable);
       }
       return result;
     }

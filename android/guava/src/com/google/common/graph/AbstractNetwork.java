@@ -18,12 +18,14 @@ package com.google.common.graph;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.graph.GraphConstants.EDGE_REMOVED_FROM_GRAPH;
 import static com.google.common.graph.GraphConstants.ENDPOINTS_MISMATCH;
 import static com.google.common.graph.GraphConstants.MULTIPLE_EDGES_CONNECTING;
+import static com.google.common.graph.GraphConstants.NODE_PAIR_REMOVED_FROM_GRAPH;
+import static com.google.common.graph.GraphConstants.NODE_REMOVED_FROM_GRAPH;
 import static java.util.Collections.unmodifiableSet;
 
 import com.google.common.annotations.Beta;
-import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -34,7 +36,7 @@ import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import javax.annotation.CheckForNull;
 
 /**
  * This class provides a skeletal implementation of {@link Network}. It is recommended to extend
@@ -49,8 +51,8 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * @since 20.0
  */
 @Beta
+@ElementTypesAreNonnullByDefault
 public abstract class AbstractNetwork<N, E> implements Network<N, E> {
-
   @Override
   public Graph<N> asGraph() {
     return new AbstractGraph<N>() {
@@ -70,13 +72,7 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
           @Override
           public Iterator<EndpointPair<N>> iterator() {
             return Iterators.transform(
-                AbstractNetwork.this.edges().iterator(),
-                new Function<E, EndpointPair<N>>() {
-                  @Override
-                  public EndpointPair<N> apply(E edge) {
-                    return incidentNodes(edge);
-                  }
-                });
+                AbstractNetwork.this.edges().iterator(), edge -> incidentNodes(edge));
           }
 
           @Override
@@ -89,7 +85,7 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
           // Network<LinkedList>.
           @SuppressWarnings("unchecked")
           @Override
-          public boolean contains(@NullableDecl Object obj) {
+          public boolean contains(@CheckForNull Object obj) {
             if (!(obj instanceof EndpointPair)) {
               return false;
             }
@@ -104,6 +100,13 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
       @Override
       public ElementOrder<N> nodeOrder() {
         return AbstractNetwork.this.nodeOrder();
+      }
+
+      @Override
+      public ElementOrder<N> incidentEdgeOrder() {
+        // TODO(b/142723300): Return AbstractNetwork.this.incidentEdgeOrder() once Network has that
+        //   method.
+        return ElementOrder.unordered();
       }
 
       @Override
@@ -159,16 +162,20 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
     EndpointPair<N> endpointPair = incidentNodes(edge); // Verifies that edge is in this network.
     Set<E> endpointPairIncidentEdges =
         Sets.union(incidentEdges(endpointPair.nodeU()), incidentEdges(endpointPair.nodeV()));
-    return Sets.difference(endpointPairIncidentEdges, ImmutableSet.of(edge));
+    return edgeInvalidatableSet(
+        Sets.difference(endpointPairIncidentEdges, ImmutableSet.of(edge)), edge);
   }
 
   @Override
   public Set<E> edgesConnecting(N nodeU, N nodeV) {
     Set<E> outEdgesU = outEdges(nodeU);
     Set<E> inEdgesV = inEdges(nodeV);
-    return outEdgesU.size() <= inEdgesV.size()
-        ? unmodifiableSet(Sets.filter(outEdgesU, connectedPredicate(nodeU, nodeV)))
-        : unmodifiableSet(Sets.filter(inEdgesV, connectedPredicate(nodeV, nodeU)));
+    return nodePairInvalidatableSet(
+        outEdgesU.size() <= inEdgesV.size()
+            ? unmodifiableSet(Sets.filter(outEdgesU, connectedPredicate(nodeU, nodeV)))
+            : unmodifiableSet(Sets.filter(inEdgesV, connectedPredicate(nodeV, nodeU))),
+        nodeU,
+        nodeV);
   }
 
   @Override
@@ -187,7 +194,7 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
   }
 
   @Override
-  @NullableDecl
+  @CheckForNull
   public E edgeConnectingOrNull(N nodeU, N nodeV) {
     Set<E> edgesConnecting = edgesConnecting(nodeU, nodeV);
     switch (edgesConnecting.size()) {
@@ -201,7 +208,7 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
   }
 
   @Override
-  @NullableDecl
+  @CheckForNull
   public E edgeConnectingOrNull(EndpointPair<N> endpoints) {
     validateEndpoints(endpoints);
     return edgeConnectingOrNull(endpoints.nodeU(), endpoints.nodeV());
@@ -209,7 +216,9 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
 
   @Override
   public boolean hasEdgeConnecting(N nodeU, N nodeV) {
-    return !edgesConnecting(nodeU, nodeV).isEmpty();
+    checkNotNull(nodeU);
+    checkNotNull(nodeV);
+    return nodes().contains(nodeU) && successors(nodeU).contains(nodeV);
   }
 
   @Override
@@ -218,12 +227,12 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
     if (!isOrderingCompatible(endpoints)) {
       return false;
     }
-    return !edgesConnecting(endpoints.nodeU(), endpoints.nodeV()).isEmpty();
+    return hasEdgeConnecting(endpoints.nodeU(), endpoints.nodeV());
   }
 
   /**
-   * Throws an IllegalArgumentException if the ordering of {@code endpoints} is not compatible
-   * with the directionality of this graph.
+   * Throws an IllegalArgumentException if the ordering of {@code endpoints} is not compatible with
+   * the directionality of this graph.
    */
   protected final void validateEndpoints(EndpointPair<?> endpoints) {
     checkNotNull(endpoints);
@@ -231,11 +240,11 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
   }
 
   protected final boolean isOrderingCompatible(EndpointPair<?> endpoints) {
-    return endpoints.isOrdered() || !this.isDirected();
+    return endpoints.isOrdered() == this.isDirected();
   }
 
   @Override
-  public final boolean equals(@NullableDecl Object obj) {
+  public final boolean equals(@CheckForNull Object obj) {
     if (obj == this) {
       return true;
     }
@@ -269,14 +278,42 @@ public abstract class AbstractNetwork<N, E> implements Network<N, E> {
         + edgeIncidentNodesMap(this);
   }
 
+  /**
+   * Returns a {@link Set} whose methods throw {@link IllegalStateException} when the given edge is
+   * not present in this network.
+   *
+   * @since 33.1.0
+   */
+  protected final <T> Set<T> edgeInvalidatableSet(Set<T> set, E edge) {
+    return InvalidatableSet.of(
+        set, () -> edges().contains(edge), () -> String.format(EDGE_REMOVED_FROM_GRAPH, edge));
+  }
+
+  /**
+   * Returns a {@link Set} whose methods throw {@link IllegalStateException} when the given node is
+   * not present in this network.
+   *
+   * @since 33.1.0
+   */
+  protected final <T> Set<T> nodeInvalidatableSet(Set<T> set, N node) {
+    return InvalidatableSet.of(
+        set, () -> nodes().contains(node), () -> String.format(NODE_REMOVED_FROM_GRAPH, node));
+  }
+
+  /**
+   * Returns a {@link Set} whose methods throw {@link IllegalStateException} when either of the
+   * given nodes is not present in this network.
+   *
+   * @since 33.1.0
+   */
+  protected final <T> Set<T> nodePairInvalidatableSet(Set<T> set, N nodeU, N nodeV) {
+    return InvalidatableSet.of(
+        set,
+        () -> nodes().contains(nodeU) && nodes().contains(nodeV),
+        () -> String.format(NODE_PAIR_REMOVED_FROM_GRAPH, nodeU, nodeV));
+  }
+
   private static <N, E> Map<E, EndpointPair<N>> edgeIncidentNodesMap(final Network<N, E> network) {
-    Function<E, EndpointPair<N>> edgeToIncidentNodesFn =
-        new Function<E, EndpointPair<N>>() {
-          @Override
-          public EndpointPair<N> apply(E edge) {
-            return network.incidentNodes(edge);
-          }
-        };
-    return Maps.asMap(network.edges(), edgeToIncidentNodesFn);
+    return Maps.asMap(network.edges(), network::incidentNodes);
   }
 }

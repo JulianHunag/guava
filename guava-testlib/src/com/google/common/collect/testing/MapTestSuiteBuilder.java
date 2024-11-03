@@ -17,6 +17,7 @@
 package com.google.common.collect.testing;
 
 import static com.google.common.collect.testing.DerivedCollectionGenerators.keySetGenerator;
+import static com.google.common.collect.testing.Helpers.copyToSet;
 
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.collect.testing.DerivedCollectionGenerators.MapEntrySetGenerator;
@@ -73,7 +74,7 @@ public class MapTestSuiteBuilder<K, V>
     return new MapTestSuiteBuilder<K, V>().usingGenerator(generator);
   }
 
-  @SuppressWarnings("unchecked") // Class parameters must be raw.
+  @SuppressWarnings("rawtypes") // class literals
   @Override
   protected List<Class<? extends AbstractTester>> getTesters() {
     return Arrays.<Class<? extends AbstractTester>>asList(
@@ -123,6 +124,8 @@ public class MapTestSuiteBuilder<K, V>
               .withFeatures(computeReserializedMapFeatures(parentBuilder.getFeatures()))
               .named(parentBuilder.getName() + " reserialized")
               .suppressing(parentBuilder.getSuppressedTests())
+              .withSetUp(parentBuilder.getSetUp())
+              .withTearDown(parentBuilder.getTearDown())
               .createTestSuite());
     }
 
@@ -132,6 +135,8 @@ public class MapTestSuiteBuilder<K, V>
             .withFeatures(computeEntrySetFeatures(parentBuilder.getFeatures()))
             .named(parentBuilder.getName() + " entrySet")
             .suppressing(parentBuilder.getSuppressedTests())
+            .withSetUp(parentBuilder.getSetUp())
+            .withTearDown(parentBuilder.getTearDown())
             .createTestSuite());
 
     derivedSuites.add(
@@ -139,6 +144,8 @@ public class MapTestSuiteBuilder<K, V>
             .withFeatures(computeKeySetFeatures(parentBuilder.getFeatures()))
             .named(parentBuilder.getName() + " keys")
             .suppressing(parentBuilder.getSuppressedTests())
+            .withSetUp(parentBuilder.getSetUp())
+            .withTearDown(parentBuilder.getTearDown())
             .createTestSuite());
 
     derivedSuites.add(
@@ -147,6 +154,8 @@ public class MapTestSuiteBuilder<K, V>
             .named(parentBuilder.getName() + " values")
             .withFeatures(computeValuesCollectionFeatures(parentBuilder.getFeatures()))
             .suppressing(parentBuilder.getSuppressedTests())
+            .withSetUp(parentBuilder.getSetUp())
+            .withTearDown(parentBuilder.getTearDown())
             .createTestSuite());
 
     return derivedSuites;
@@ -167,7 +176,7 @@ public class MapTestSuiteBuilder<K, V>
   }
 
   private static Set<Feature<?>> computeReserializedMapFeatures(Set<Feature<?>> mapFeatures) {
-    Set<Feature<?>> derivedFeatures = Helpers.copyToSet(mapFeatures);
+    Set<Feature<?>> derivedFeatures = copyToSet(mapFeatures);
     derivedFeatures.remove(CollectionFeature.SERIALIZABLE);
     derivedFeatures.remove(CollectionFeature.SERIALIZABLE_INCLUDING_VIEWS);
     return derivedFeatures;

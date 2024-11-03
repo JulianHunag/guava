@@ -16,17 +16,24 @@
 
 package com.google.common.collect.testing;
 
+import static com.google.common.collect.testing.Helpers.entryComparator;
+import static java.lang.Math.max;
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
+import static junit.framework.Assert.fail;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -37,41 +44,42 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import junit.framework.Assert;
-import junit.framework.AssertionFailedError;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 @GwtCompatible(emulated = true)
+@ElementTypesAreNonnullByDefault
 public class Helpers {
   // Clone of Objects.equal
-  static boolean equal(Object a, Object b) {
+  static boolean equal(@Nullable Object a, @Nullable Object b) {
     return a == b || (a != null && a.equals(b));
   }
 
   // Clone of Lists.newArrayList
-  public static <E> List<E> copyToList(Iterable<? extends E> elements) {
-    List<E> list = new ArrayList<E>();
+  public static <E extends @Nullable Object> List<E> copyToList(Iterable<? extends E> elements) {
+    List<E> list = new ArrayList<>();
     addAll(list, elements);
     return list;
   }
 
-  public static <E> List<E> copyToList(E[] elements) {
-    return copyToList(Arrays.asList(elements));
+  public static <E extends @Nullable Object> List<E> copyToList(E[] elements) {
+    return copyToList(asList(elements));
   }
 
   // Clone of Sets.newLinkedHashSet
-  public static <E> Set<E> copyToSet(Iterable<? extends E> elements) {
-    Set<E> set = new LinkedHashSet<E>();
+  public static <E extends @Nullable Object> Set<E> copyToSet(Iterable<? extends E> elements) {
+    Set<E> set = new LinkedHashSet<>();
     addAll(set, elements);
     return set;
   }
 
-  public static <E> Set<E> copyToSet(E[] elements) {
-    return copyToSet(Arrays.asList(elements));
+  public static <E extends @Nullable Object> Set<E> copyToSet(E[] elements) {
+    return copyToSet(asList(elements));
   }
 
   // Would use Maps.immutableEntry
-  public static <K, V> Entry<K, V> mapEntry(K key, V value) {
-    return Collections.singletonMap(key, value).entrySet().iterator().next();
+  public static <K extends @Nullable Object, V extends @Nullable Object> Entry<K, V> mapEntry(
+      K key, V value) {
+    return singletonMap(key, value).entrySet().iterator().next();
   }
 
   private static boolean isEmpty(Iterable<?> iterable) {
@@ -82,13 +90,13 @@ public class Helpers {
 
   public static void assertEmpty(Iterable<?> iterable) {
     if (!isEmpty(iterable)) {
-      Assert.fail("Not true that " + iterable + " is empty");
+      fail("Not true that " + iterable + " is empty");
     }
   }
 
   public static void assertEmpty(Map<?, ?> map) {
     if (!map.isEmpty()) {
-      Assert.fail("Not true that " + map + " is empty");
+      fail("Not true that " + map + " is empty");
     }
   }
 
@@ -98,7 +106,7 @@ public class Helpers {
 
     while (expectedIter.hasNext() && actualIter.hasNext()) {
       if (!equal(expectedIter.next(), actualIter.next())) {
-        Assert.fail(
+        fail(
             "contents were not equal and in the same order: "
                 + "expected = "
                 + expected
@@ -109,7 +117,7 @@ public class Helpers {
 
     if (expectedIter.hasNext() || actualIter.hasNext()) {
       // actual either had too few or too many elements
-      Assert.fail(
+      fail(
           "contents were not equal and in the same order: "
               + "expected = "
               + expected
@@ -119,7 +127,7 @@ public class Helpers {
   }
 
   public static void assertContentsInOrder(Iterable<?> actual, Object... expected) {
-    assertEqualInOrder(Arrays.asList(expected), actual);
+    assertEqualInOrder(asList(expected), actual);
   }
 
   public static void assertEqualIgnoringOrder(Iterable<?> expected, Iterable<?> actual) {
@@ -133,7 +141,7 @@ public class Helpers {
     // Yeah it's n^2.
     for (Object object : exp) {
       if (!act.remove(object)) {
-        Assert.fail(
+        fail(
             "did not contain expected element "
                 + object
                 + ", "
@@ -147,7 +155,7 @@ public class Helpers {
   }
 
   public static void assertContentsAnyOrder(Iterable<?> actual, Object... expected) {
-    assertEqualIgnoringOrder(Arrays.asList(expected), actual);
+    assertEqualIgnoringOrder(asList(expected), actual);
   }
 
   public static void assertContains(Iterable<?> actual, Object expected) {
@@ -164,24 +172,25 @@ public class Helpers {
     }
 
     if (!contained) {
-      Assert.fail("Not true that " + actual + " contains " + expected);
+      fail("Not true that " + actual + " contains " + expected);
     }
   }
 
   public static void assertContainsAllOf(Iterable<?> actual, Object... expected) {
-    List<Object> expectedList = new ArrayList<>();
-    expectedList.addAll(Arrays.asList(expected));
+    List<Object> expectedList = new ArrayList<>(asList(expected));
 
     for (Object o : actual) {
       expectedList.remove(o);
     }
 
     if (!expectedList.isEmpty()) {
-      Assert.fail("Not true that " + actual + " contains all of " + Arrays.asList(expected));
+      fail("Not true that " + actual + " contains all of " + asList(expected));
     }
   }
 
-  public static <E> boolean addAll(Collection<E> addTo, Iterable<? extends E> elementsToAdd) {
+  @CanIgnoreReturnValue
+  public static <E extends @Nullable Object> boolean addAll(
+      Collection<E> addTo, Iterable<? extends E> elementsToAdd) {
     boolean modified = false;
     for (E e : elementsToAdd) {
       modified |= addTo.add(e);
@@ -189,11 +198,11 @@ public class Helpers {
     return modified;
   }
 
-  static <T> Iterable<T> reverse(final List<T> list) {
+  static <T extends @Nullable Object> Iterable<T> reverse(List<T> list) {
     return new Iterable<T>() {
       @Override
       public Iterator<T> iterator() {
-        final ListIterator<T> listIter = list.listIterator(list.size());
+        ListIterator<T> listIter = list.listIterator(list.size());
         return new Iterator<T>() {
           @Override
           public boolean hasNext() {
@@ -214,7 +223,7 @@ public class Helpers {
     };
   }
 
-  static <T> Iterator<T> cycle(final Iterable<T> iterable) {
+  static <T extends @Nullable Object> Iterator<T> cycle(Iterable<T> iterable) {
     return new Iterator<T>() {
       Iterator<T> iterator = Collections.<T>emptySet().iterator();
 
@@ -238,30 +247,33 @@ public class Helpers {
     };
   }
 
-  static <T> T get(Iterator<T> iterator, int position) {
+  static <T extends @Nullable Object> T get(Iterator<T> iterator, int position) {
     for (int i = 0; i < position; i++) {
       iterator.next();
     }
     return iterator.next();
   }
 
-  static void fail(Throwable cause, Object message) {
-    AssertionFailedError assertionFailedError = new AssertionFailedError(String.valueOf(message));
-    assertionFailedError.initCause(cause);
-    throw assertionFailedError;
+  private static class EntryComparator<K extends @Nullable Object, V extends @Nullable Object>
+      implements Comparator<Entry<K, V>> {
+    final @Nullable Comparator<? super K> keyComparator;
+
+    public EntryComparator(@Nullable Comparator<? super K> keyComparator) {
+      this.keyComparator = keyComparator;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked") // no less safe than putting it in the map!
+    public int compare(Entry<K, V> a, Entry<K, V> b) {
+      return (keyComparator == null)
+          ? ((Comparable) a.getKey()).compareTo(b.getKey())
+          : keyComparator.compare(a.getKey(), b.getKey());
+    }
   }
 
-  public static <K, V> Comparator<Entry<K, V>> entryComparator(
-      final Comparator<? super K> keyComparator) {
-    return new Comparator<Entry<K, V>>() {
-      @Override
-      @SuppressWarnings("unchecked") // no less safe than putting it in the map!
-      public int compare(Entry<K, V> a, Entry<K, V> b) {
-        return (keyComparator == null)
-            ? ((Comparable) a.getKey()).compareTo(b.getKey())
-            : keyComparator.compare(a.getKey(), b.getKey());
-      }
-    };
+  public static <K extends @Nullable Object, V extends @Nullable Object>
+      Comparator<Entry<K, V>> entryComparator(@Nullable Comparator<? super K> keyComparator) {
+    return new EntryComparator<K, V>(keyComparator);
   }
 
   /**
@@ -271,9 +283,9 @@ public class Helpers {
    *
    * @see #testComparator(Comparator, List)
    */
-  public static <T> void testComparator(
+  public static <T extends @Nullable Object> void testComparator(
       Comparator<? super T> comparator, T... valuesInExpectedOrder) {
-    testComparator(comparator, Arrays.asList(valuesInExpectedOrder));
+    testComparator(comparator, asList(valuesInExpectedOrder));
   }
 
   /**
@@ -291,7 +303,7 @@ public class Helpers {
    *       valuesInExpectedOrder.get(i)} and {@code tj = valuesInExpectedOrder.get(j)}.
    * </ul>
    */
-  public static <T> void testComparator(
+  public static <T extends @Nullable Object> void testComparator(
       Comparator<? super T> comparator, List<T> valuesInExpectedOrder) {
     // This does an O(n^2) test of all pairs of values in both orders
     for (int i = 0; i < valuesInExpectedOrder.size(); i++) {
@@ -346,14 +358,47 @@ public class Helpers {
    * @param delta the difference between the true size of the collection and the values returned by
    *     the size method
    */
-  public static <T> Collection<T> misleadingSizeCollection(final int delta) {
+  public static <T extends @Nullable Object> Collection<T> misleadingSizeCollection(int delta) {
     // It would be nice to be able to return a real concurrent
     // collection like ConcurrentLinkedQueue, so that e.g. concurrent
     // iteration would work, but that would not be GWT-compatible.
-    return new ArrayList<T>() {
+    // We are not "just" inheriting from ArrayList here as this doesn't work for J2kt.
+    return new AbstractList<T>() {
+      ArrayList<T> data = new ArrayList<>();
+
       @Override
       public int size() {
-        return Math.max(0, super.size() + delta);
+        return max(0, data.size() + delta);
+      }
+
+      @Override
+      public T get(int index) {
+        return data.get(index);
+      }
+
+      @Override
+      public T set(int index, T element) {
+        return data.set(index, element);
+      }
+
+      @Override
+      public boolean add(T element) {
+        return data.add(element);
+      }
+
+      @Override
+      public void add(int index, T element) {
+        data.add(index, element);
+      }
+
+      @Override
+      public T remove(int index) {
+        return data.remove(index);
+      }
+
+      @Override
+      public @Nullable Object[] toArray() {
+        return data.toArray();
       }
     };
   }
@@ -364,7 +409,8 @@ public class Helpers {
    * equals. This is used for testing unmodifiable collections of map entries; for example, it
    * should not be possible to access the raw (modifiable) map entry via a nefarious equals method.
    */
-  public static <K, V> Entry<K, V> nefariousMapEntry(final K key, final V value) {
+  public static <K extends @Nullable Object, V extends @Nullable Object>
+      Entry<K, V> nefariousMapEntry(K key, V value) {
     return new Entry<K, V>() {
       @Override
       public K getKey() {
@@ -383,7 +429,7 @@ public class Helpers {
 
       @SuppressWarnings("unchecked")
       @Override
-      public boolean equals(Object o) {
+      public boolean equals(@Nullable Object o) {
         if (o instanceof Entry) {
           Entry<K, V> e = (Entry<K, V>) o;
           e.setValue(value); // muhahaha!
@@ -407,29 +453,23 @@ public class Helpers {
     };
   }
 
-  static <E> List<E> castOrCopyToList(Iterable<E> iterable) {
+  static <E extends @Nullable Object> List<E> castOrCopyToList(Iterable<E> iterable) {
     if (iterable instanceof List) {
       return (List<E>) iterable;
     }
-    List<E> list = new ArrayList<E>();
+    List<E> list = new ArrayList<>();
     for (E e : iterable) {
       list.add(e);
     }
     return list;
   }
 
-  private static final Comparator<Comparable> NATURAL_ORDER =
-      new Comparator<Comparable>() {
-        @SuppressWarnings("unchecked") // assume any Comparable is Comparable<Self>
-        @Override
-        public int compare(Comparable left, Comparable right) {
-          return left.compareTo(right);
-        }
-      };
-
-  public static <K extends Comparable, V> Iterable<Entry<K, V>> orderEntriesByKey(
-      List<Entry<K, V>> insertionOrder) {
-    sort(insertionOrder, Helpers.<K, V>entryComparator(NATURAL_ORDER));
+  @SuppressWarnings("rawtypes") // https://github.com/google/guava/issues/989
+  public static <K extends Comparable, V extends @Nullable Object>
+      Iterable<Entry<K, V>> orderEntriesByKey(List<Entry<K, V>> insertionOrder) {
+    @SuppressWarnings("unchecked") // assume any Comparable is Comparable<Self>
+    Comparator<? super K> keyComparator = (Comparator<? super K>) Comparable::compareTo;
+    sort(insertionOrder, entryComparator(keyComparator));
     return insertionOrder;
   }
 
@@ -445,7 +485,7 @@ public class Helpers {
    * values, it lies outside the submap/submultiset ranges we test, and the variety of tests that
    * exercise null handling fail on those subcollections.
    */
-  public abstract static class NullsBefore implements Comparator<String>, Serializable {
+  public abstract static class NullsBefore implements Comparator<@Nullable String>, Serializable {
     /*
      * We don't serialize this class in GWT, so we don't care about whether GWT will serialize this
      * field.
@@ -461,7 +501,7 @@ public class Helpers {
     }
 
     @Override
-    public int compare(String lhs, String rhs) {
+    public int compare(@Nullable String lhs, @Nullable String rhs) {
       if (lhs == rhs) {
         return 0;
       }
@@ -485,7 +525,7 @@ public class Helpers {
     }
 
     @Override
-    public boolean equals(Object obj) {
+    public boolean equals(@Nullable Object obj) {
       if (obj instanceof NullsBefore) {
         NullsBefore other = (NullsBefore) obj;
         return justAfterNull.equals(other.justAfterNull);
@@ -515,6 +555,7 @@ public class Helpers {
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   public static Method getMethod(Class<?> clazz, String name) {
     try {

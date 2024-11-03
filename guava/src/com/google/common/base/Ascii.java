@@ -18,6 +18,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtCompatible;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Static methods pertaining to ASCII characters (those in the range of values {@code 0x00} through
@@ -27,7 +28,7 @@ import com.google.common.annotations.GwtCompatible;
  *
  * <ul>
  *   <!-- TODO(kevinb): how can we make this not produce a warning when building gwt javadoc? -->
- *   <li>{@link Charsets#US_ASCII} specifies the {@code Charset} of ASCII characters.
+ *   <li>{@link StandardCharsets#US_ASCII} specifies the {@code Charset} of ASCII characters.
  *   <li>{@link CharMatcher#ascii} matches ASCII characters and provides text processing methods
  *       which operate only on the ASCII characters of a string.
  * </ul>
@@ -37,6 +38,7 @@ import com.google.common.annotations.GwtCompatible;
  * @since 7.0
  */
 @GwtCompatible
+@ElementTypesAreNonnullByDefault
 public final class Ascii {
 
   private Ascii() {}
@@ -439,7 +441,7 @@ public final class Ascii {
   }
 
   /**
-   * If the argument is an {@linkplain #isUpperCase(char) uppercase ASCII character} returns the
+   * If the argument is an {@linkplain #isUpperCase(char) uppercase ASCII character}, returns the
    * lowercase equivalent. Otherwise returns the argument.
    */
   public static char toLowerCase(char c) {
@@ -487,7 +489,7 @@ public final class Ascii {
   }
 
   /**
-   * If the argument is a {@linkplain #isLowerCase(char) lowercase ASCII character} returns the
+   * If the argument is a {@linkplain #isLowerCase(char) lowercase ASCII character}, returns the
    * uppercase equivalent. Otherwise returns the argument.
    */
   public static char toUpperCase(char c) {
@@ -541,7 +543,6 @@ public final class Ascii {
    *   <li>the appropriate truncation indicator may be locale-dependent
    *   <li>it is safe to use non-ASCII characters in the truncation indicator
    * </ul>
-   *
    *
    * @throws IllegalArgumentException if {@code maxLength} is less than the length of {@code
    *     truncationIndicator}

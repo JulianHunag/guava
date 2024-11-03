@@ -17,6 +17,7 @@
 package com.google.common.testing;
 
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.testing.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.annotations.GwtCompatible;
@@ -45,15 +46,11 @@ public class EquivalenceTesterTest extends TestCase {
   }
 
   /** Test null reference yields error */
-  public void testOf_NullPointerException() {
-    try {
-      EquivalenceTester.of(null);
-      fail("Should fail on null reference");
-    } catch (NullPointerException expected) {
-    }
+  public void testOf_nullPointerException() {
+    assertThrows(NullPointerException.class, () -> EquivalenceTester.of(null));
   }
 
-  public void testTest_NoData() {
+  public void testTest_noData() {
     tester.test();
   }
 
@@ -113,7 +110,7 @@ public class EquivalenceTesterTest extends TestCase {
     fail();
   }
 
-  public void testTest_trasitive() {
+  public void testTest_transitive() {
     Object group1Item1 = new TestObject(1, 1);
     Object group1Item2 = new TestObject(1, 2);
     Object group1Item3 = new TestObject(1, 3);
@@ -237,7 +234,7 @@ public class EquivalenceTesterTest extends TestCase {
     void replay() {
       checkRecording();
       equivalentExpectations = equivalentExpectationsBuilder.build();
-      hashExpectations = hashExpectationsBuilder.build();
+      hashExpectations = hashExpectationsBuilder.buildOrThrow();
     }
 
     @Override

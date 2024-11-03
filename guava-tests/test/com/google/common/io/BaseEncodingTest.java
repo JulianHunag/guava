@@ -14,12 +14,14 @@
 
 package com.google.common.io;
 
-import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.io.BaseEncoding.base16;
 import static com.google.common.io.BaseEncoding.base32;
 import static com.google.common.io.BaseEncoding.base32Hex;
 import static com.google.common.io.BaseEncoding.base64;
+import static com.google.common.io.BaseEncoding.base64Url;
+import static com.google.common.io.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.truth.Truth.assertThat;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
@@ -31,6 +33,7 @@ import com.google.common.io.BaseEncoding.DecodingException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import junit.framework.TestCase;
@@ -51,26 +54,15 @@ public class BaseEncodingTest extends TestCase {
   }
 
   public void testSeparatorSameAsPadChar() {
-    try {
-      base64().withSeparator("=", 3);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> base64().withSeparator("=", 3));
 
-    try {
-      base64().withPadChar('#').withSeparator("!#!", 3);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class, () -> base64().withPadChar('#').withSeparator("!#!", 3));
   }
 
   public void testAtMostOneSeparator() {
     BaseEncoding separated = base64().withSeparator("\n", 3);
-    try {
-      separated.withSeparator("$", 4);
-      fail("Expected UnsupportedOperationException");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> separated.withSeparator("$", 4));
   }
 
   public void testBase64() {
@@ -119,21 +111,15 @@ public class BaseEncodingTest extends TestCase {
   }
 
   public void testBase64CannotUpperCase() {
-    try {
-      base64().upperCase();
-      fail();
-    } catch (IllegalStateException expected) {
-      // success
-    }
+    assertThrows(IllegalStateException.class, () -> base64().upperCase());
   }
 
   public void testBase64CannotLowerCase() {
-    try {
-      base64().lowerCase();
-      fail();
-    } catch (IllegalStateException expected) {
-      // success
-    }
+    assertThrows(IllegalStateException.class, () -> base64().lowerCase());
+  }
+
+  public void testBase64CannotIgnoreCase() {
+    assertThrows(IllegalStateException.class, () -> base64().ignoreCase());
   }
 
   public void testBase64AlternatePadding() {
@@ -188,6 +174,16 @@ public class BaseEncodingTest extends TestCase {
     testEncodesWithOffset(base64(), "foobar", 2, 3, "b2Jh");
     testEncodesWithOffset(base64(), "foobar", 3, 1, "Yg==");
     testEncodesWithOffset(base64(), "foobar", 4, 0, "");
+  }
+
+  public void testBase64Url() {
+    testDecodesByBytes(base64Url(), "_zzz", new byte[] {-1, 60, -13});
+    testDecodesByBytes(base64Url(), "-zzz", new byte[] {-5, 60, -13});
+  }
+
+  public void testBase64UrlInvalidDecodings() {
+    assertFailsToDecode(base64Url(), "+zzz", "Unrecognized character: +");
+    assertFailsToDecode(base64Url(), "/zzz", "Unrecognized character: /");
   }
 
   public void testBase32() {
@@ -250,7 +246,19 @@ public class BaseEncodingTest extends TestCase {
   }
 
   public void testBase32UpperCaseIsNoOp() {
-    assertSame(base32(), base32().upperCase());
+    assertThat(base32().upperCase()).isSameInstanceAs(base32());
+  }
+
+  public void testBase32LowerCase() {
+    testEncodingWithCasing(base32().lowerCase(), "foobar", "mzxw6ytboi======");
+  }
+
+  public void testBase32IgnoreCase() {
+    BaseEncoding ignoreCase = base32().ignoreCase();
+    assertThat(ignoreCase).isNotSameInstanceAs(base32());
+    assertThat(ignoreCase).isSameInstanceAs(base32().ignoreCase());
+    testDecodes(ignoreCase, "MZXW6YTBOI======", "foobar");
+    testDecodes(ignoreCase, "mzxw6ytboi======", "foobar");
   }
 
   public void testBase32Offset() {
@@ -306,7 +314,7 @@ public class BaseEncodingTest extends TestCase {
   }
 
   public void testBase32HexUpperCaseIsNoOp() {
-    assertSame(base32Hex(), base32Hex().upperCase());
+    assertThat(base32Hex().upperCase()).isSameInstanceAs(base32Hex());
   }
 
   public void testBase16() {
@@ -320,7 +328,44 @@ public class BaseEncodingTest extends TestCase {
   }
 
   public void testBase16UpperCaseIsNoOp() {
-    assertSame(base16(), base16().upperCase());
+    assertThat(base16().upperCase()).isSameInstanceAs(base16());
+  }
+
+  public void testBase16LowerCase() {
+    BaseEncoding lowerCase = base16().lowerCase();
+    assertThat(lowerCase).isNotSameInstanceAs(base16());
+    assertThat(lowerCase).isSameInstanceAs(base16().lowerCase());
+    testEncodingWithCasing(lowerCase, "foobar", "666f6f626172");
+  }
+
+  public void testBase16IgnoreCase() {
+    BaseEncoding ignoreCase = base16().ignoreCase();
+    assertThat(ignoreCase).isNotSameInstanceAs(base16());
+    assertThat(ignoreCase).isSameInstanceAs(base16().ignoreCase());
+    testEncodingWithCasing(ignoreCase, "foobar", "666F6F626172");
+    testDecodes(ignoreCase, "666F6F626172", "foobar");
+    testDecodes(ignoreCase, "666f6f626172", "foobar");
+    testDecodes(ignoreCase, "666F6f626172", "foobar");
+  }
+
+  public void testBase16LowerCaseIgnoreCase() {
+    BaseEncoding ignoreCase = base16().lowerCase().ignoreCase();
+    assertThat(ignoreCase).isNotSameInstanceAs(base16());
+    assertThat(ignoreCase).isSameInstanceAs(base16().lowerCase().ignoreCase());
+    testEncodingWithCasing(ignoreCase, "foobar", "666f6f626172");
+    testDecodes(ignoreCase, "666F6F626172", "foobar");
+    testDecodes(ignoreCase, "666f6f626172", "foobar");
+    testDecodes(ignoreCase, "666F6f626172", "foobar");
+  }
+
+  // order the methods are called should not matter
+  public void testBase16IgnoreCaseLowerCase() {
+    BaseEncoding ignoreCase = base16().ignoreCase().lowerCase();
+    assertThat(ignoreCase).isNotSameInstanceAs(base16());
+    testEncodingWithCasing(ignoreCase, "foobar", "666f6f626172");
+    testDecodes(ignoreCase, "666F6F626172", "foobar");
+    testDecodes(ignoreCase, "666f6f626172", "foobar");
+    testDecodes(ignoreCase, "666F6f626172", "foobar");
   }
 
   public void testBase16InvalidDecodings() {
@@ -332,6 +377,8 @@ public class BaseEncodingTest extends TestCase {
     assertFailsToDecode(base16(), "ABC");
     // These have a combination of invalid length and unrecognized characters.
     assertFailsToDecode(base16(), "?", "Invalid input length 1");
+    assertFailsToDecode(base16(), "ab");
+    assertFailsToDecode(base16().lowerCase(), "AB");
   }
 
   public void testBase16Offset() {
@@ -379,8 +426,13 @@ public class BaseEncodingTest extends TestCase {
   }
 
   private static void testDecodes(BaseEncoding encoding, String encoded, String decoded) {
-    assertTrue(encoding.canDecode(encoded));
+    assertThat(encoding.canDecode(encoded)).isTrue();
     assertThat(encoding.decode(encoded)).isEqualTo(decoded.getBytes(UTF_8));
+  }
+
+  private static void testDecodesByBytes(BaseEncoding encoding, String encoded, byte[] decoded) {
+    assertThat(encoding.canDecode(encoded)).isTrue();
+    assertThat(encoding.decode(encoded)).isEqualTo(decoded);
   }
 
   private static void assertFailsToDecode(BaseEncoding encoding, String cannotDecode) {
@@ -389,23 +441,80 @@ public class BaseEncodingTest extends TestCase {
 
   private static void assertFailsToDecode(
       BaseEncoding encoding, String cannotDecode, @Nullable String expectedMessage) {
-    assertFalse(encoding.canDecode(cannotDecode));
-    try {
-      encoding.decode(cannotDecode);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-      if (expectedMessage != null) {
-        assertThat(expected).hasCauseThat().hasMessageThat().isEqualTo(expectedMessage);
-      }
+    // We use this somewhat weird pattern with an enum for each assertion we want to make as a way
+    // of dealing with the fact that one of the assertions is @GwtIncompatible but we don't want to
+    // have to have duplicate @GwtIncompatible test methods just to make that assertion.
+    for (AssertFailsToDecodeStrategy strategy : AssertFailsToDecodeStrategy.values()) {
+      strategy.assertFailsToDecode(encoding, cannotDecode, expectedMessage);
     }
-    try {
-      encoding.decodeChecked(cannotDecode);
-      fail("Expected DecodingException");
-    } catch (DecodingException expected) {
-      if (expectedMessage != null) {
-        assertThat(expected).hasMessageThat().isEqualTo(expectedMessage);
+  }
+
+  enum AssertFailsToDecodeStrategy {
+    CAN_DECODE {
+      @Override
+      void assertFailsToDecode(
+          BaseEncoding encoding, String cannotDecode, @Nullable String expectedMessage) {
+        assertThat(encoding.canDecode(cannotDecode)).isFalse();
       }
-    }
+    },
+    DECODE {
+      @Override
+      void assertFailsToDecode(
+          BaseEncoding encoding, String cannotDecode, @Nullable String expectedMessage) {
+        try {
+          encoding.decode(cannotDecode);
+          fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+          if (expectedMessage != null) {
+            assertThat(expected).hasCauseThat().hasMessageThat().isEqualTo(expectedMessage);
+          }
+        }
+      }
+    },
+    DECODE_CHECKED {
+      @Override
+      void assertFailsToDecode(
+          BaseEncoding encoding, String cannotDecode, @Nullable String expectedMessage) {
+        try {
+          encoding.decodeChecked(cannotDecode);
+          fail("Expected DecodingException");
+        } catch (DecodingException expected) {
+          if (expectedMessage != null) {
+            assertThat(expected).hasMessageThat().isEqualTo(expectedMessage);
+          }
+        }
+      }
+    },
+    /*
+     * This one comes last to work around b/367716565. (One *possible* alternative would be to not
+     * declare any methods in this enum, converting assertFailsToDecode into a static method that is
+     * implemented with a `switch`. I haven't tested that.)
+     */
+    @GwtIncompatible // decodingStream(Reader)
+    DECODING_STREAM {
+      @Override
+      void assertFailsToDecode(
+          BaseEncoding encoding, String cannotDecode, @Nullable String expectedMessage) {
+        // Regression test for case where DecodingException was swallowed by default implementation
+        // of
+        // InputStream.read(byte[], int, int)
+        // See https://github.com/google/guava/issues/3542
+        Reader reader = new StringReader(cannotDecode);
+        InputStream decodingStream = encoding.decodingStream(reader);
+        try {
+          ByteStreams.exhaust(decodingStream);
+          fail("Expected DecodingException");
+        } catch (DecodingException expected) {
+          // Don't assert on the expectedMessage; the messages for exceptions thrown from the
+          // decoding stream may differ from the messages for the decode methods.
+        } catch (IOException e) {
+          fail("Expected DecodingException but got: " + e);
+        }
+      }
+    };
+
+    abstract void assertFailsToDecode(
+        BaseEncoding encoding, String cannotDecode, @Nullable String expectedMessage);
   }
 
   @GwtIncompatible // Reader/Writer
@@ -443,9 +552,9 @@ public class BaseEncodingTest extends TestCase {
   private static void testStreamingEncodes(BaseEncoding encoding, String decoded, String encoded)
       throws IOException {
     StringWriter writer = new StringWriter();
-    OutputStream encodingStream = encoding.encodingStream(writer);
-    encodingStream.write(decoded.getBytes(UTF_8));
-    encodingStream.close();
+    try (OutputStream encodingStream = encoding.encodingStream(writer)) {
+      encodingStream.write(decoded.getBytes(UTF_8));
+    }
     assertThat(writer.toString()).isEqualTo(encoded);
   }
 
@@ -453,22 +562,21 @@ public class BaseEncodingTest extends TestCase {
   private static void testStreamingDecodes(BaseEncoding encoding, String encoded, String decoded)
       throws IOException {
     byte[] bytes = decoded.getBytes(UTF_8);
-    InputStream decodingStream = encoding.decodingStream(new StringReader(encoded));
-    for (int i = 0; i < bytes.length; i++) {
-      assertThat(decodingStream.read()).isEqualTo(bytes[i] & 0xFF);
+    try (InputStream decodingStream = encoding.decodingStream(new StringReader(encoded))) {
+      for (int i = 0; i < bytes.length; i++) {
+        assertThat(decodingStream.read()).isEqualTo(bytes[i] & 0xFF);
+      }
+      assertThat(decodingStream.read()).isEqualTo(-1);
     }
-    assertThat(decodingStream.read()).isEqualTo(-1);
-    decodingStream.close();
   }
 
   public void testToString() {
-    assertEquals("BaseEncoding.base64().withPadChar('=')", base64().toString());
-    assertEquals("BaseEncoding.base32Hex().omitPadding()", base32Hex().omitPadding().toString());
-    assertEquals(
-        "BaseEncoding.base32().lowerCase().withPadChar('$')",
-        base32().lowerCase().withPadChar('$').toString());
-    assertEquals(
-        "BaseEncoding.base16().withSeparator(\"\n\", 10)",
-        base16().withSeparator("\n", 10).toString());
+    assertThat(base64().toString()).isEqualTo("BaseEncoding.base64().withPadChar('=')");
+    assertThat(base32Hex().omitPadding().toString())
+        .isEqualTo("BaseEncoding.base32Hex().omitPadding()");
+    assertThat(base32().lowerCase().withPadChar('$').toString())
+        .isEqualTo("BaseEncoding.base32().lowerCase().withPadChar('$')");
+    assertThat(base16().withSeparator("\n", 10).toString())
+        .isEqualTo("BaseEncoding.base16().withSeparator(\"\n\", 10)");
   }
 }

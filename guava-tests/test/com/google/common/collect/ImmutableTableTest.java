@@ -16,17 +16,19 @@
 
 package com.google.common.collect;
 
+import static com.google.common.collect.ReflectionFreeAssertThrows.assertThrows;
+import static com.google.common.collect.TableCollectors.toImmutableTable;
+import static com.google.common.collect.Tables.immutableCell;
 import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
-import com.google.common.base.Equivalence;
-import com.google.common.base.MoreObjects;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.Table.Cell;
 import com.google.common.testing.CollectorTester;
 import com.google.common.testing.SerializableTester;
 import java.util.stream.Collector;
-import java.util.stream.Stream;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Tests common methods in {@link ImmutableTable}
@@ -34,9 +36,10 @@ import java.util.stream.Stream;
  * @author Gregory Kick
  */
 @GwtCompatible(emulated = true)
-public class ImmutableTableTest extends AbstractTableReadTest {
+@ElementTypesAreNonnullByDefault
+public class ImmutableTableTest extends AbstractTableReadTest<Character> {
   @Override
-  protected Table<String, Integer, Character> create(Object... data) {
+  protected Table<String, Integer, Character> create(@Nullable Object... data) {
     ImmutableTable.Builder<String, Integer, Character> builder = ImmutableTable.builder();
     for (int i = 0; i < data.length; i = i + 3) {
       builder.put((String) data[i], (Integer) data[i + 1], (Character) data[i + 2]);
@@ -44,153 +47,25 @@ public class ImmutableTableTest extends AbstractTableReadTest {
     return builder.build();
   }
 
-  public void testToImmutableTable() {
+  // The bulk of the toImmutableTable tests can be found in TableCollectorsTest.
+  // This gives minimal coverage to the forwarding functions
+  public void testToImmutableTableSanityTest() {
     Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(Cell::getRowKey, Cell::getColumnKey, Cell::getValue);
-    Equivalence<ImmutableTable<String, String, Integer>> equivalence =
-        Equivalence.equals()
-            .<Cell<String, String, Integer>>pairwise()
-            .onResultOf(ImmutableTable::cellSet);
-    CollectorTester.of(collector, equivalence)
+        toImmutableTable(Cell::getRowKey, Cell::getColumnKey, Cell::getValue);
+    CollectorTester.of(collector)
+        .expectCollects(ImmutableTable.of())
+        .expectCollects(ImmutableTable.of("one", "uno", 1), immutableCell("one", "uno", 1));
+  }
+
+  public void testToImmutableTableMergingSanityTest() {
+    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
+        toImmutableTable(Cell::getRowKey, Cell::getColumnKey, Cell::getValue, Integer::sum);
+    CollectorTester.of(collector)
+        .expectCollects(ImmutableTable.of())
         .expectCollects(
-            new ImmutableTable.Builder<String, String, Integer>()
-                .put("one", "uno", 1)
-                .put("two", "dos", 2)
-                .put("three", "tres", 3)
-                .build(),
-            Tables.immutableCell("one", "uno", 1),
-            Tables.immutableCell("two", "dos", 2),
-            Tables.immutableCell("three", "tres", 3));
-  }
-
-  public void testToImmutableTableConflict() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(Cell::getRowKey, Cell::getColumnKey, Cell::getValue);
-    try {
-      Stream.of(Tables.immutableCell("one", "uno", 1), Tables.immutableCell("one", "uno", 2))
-          .collect(collector);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
-  }
-
-  public void testToImmutableTableNullRowKey() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(t -> null, Cell::getColumnKey, Cell::getValue);
-    try {
-      Stream.of(Tables.immutableCell("one", "uno", 1)).collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
-  }
-
-  public void testToImmutableTableNullColumnKey() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(Cell::getRowKey, t -> null, Cell::getValue);
-    try {
-      Stream.of(Tables.immutableCell("one", "uno", 1)).collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
-  }
-
-  public void testToImmutableTableNullValue() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(Cell::getRowKey, Cell::getColumnKey, t -> null);
-    try {
-      Stream.of(Tables.immutableCell("one", "uno", 1)).collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
-    collector =
-        ImmutableTable.toImmutableTable(Cell::getRowKey, Cell::getColumnKey, Cell::getValue);
-    try {
-      Stream.of(
-              Tables.immutableCell("one", "uno", 1),
-              Tables.immutableCell("one", "uno", (Integer) null))
-          .collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
-  }
-
-  public void testToImmutableTableMerging() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(
-            Cell::getRowKey, Cell::getColumnKey, Cell::getValue, Integer::sum);
-    Equivalence<ImmutableTable<String, String, Integer>> equivalence =
-        Equivalence.equals()
-            .<Cell<String, String, Integer>>pairwise()
-            .onResultOf(ImmutableTable::cellSet);
-    CollectorTester.of(collector, equivalence)
-        .expectCollects(
-            new ImmutableTable.Builder<String, String, Integer>()
-                .put("one", "uno", 1)
-                .put("two", "dos", 6)
-                .put("three", "tres", 3)
-                .build(),
-            Tables.immutableCell("one", "uno", 1),
-            Tables.immutableCell("two", "dos", 2),
-            Tables.immutableCell("three", "tres", 3),
-            Tables.immutableCell("two", "dos", 4));
-  }
-
-  public void testToImmutableTableMergingNullRowKey() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(
-            t -> null, Cell::getColumnKey, Cell::getValue, Integer::sum);
-    try {
-      Stream.of(Tables.immutableCell("one", "uno", 1)).collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
-  }
-
-  public void testToImmutableTableMergingNullColumnKey() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(Cell::getRowKey, t -> null, Cell::getValue, Integer::sum);
-    try {
-      Stream.of(Tables.immutableCell("one", "uno", 1)).collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
-  }
-
-  public void testToImmutableTableMergingNullValue() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(
-            Cell::getRowKey, Cell::getColumnKey, t -> null, Integer::sum);
-    try {
-      Stream.of(Tables.immutableCell("one", "uno", 1)).collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
-    collector =
-        ImmutableTable.toImmutableTable(
-            Cell::getRowKey,
-            Cell::getColumnKey,
-            Cell::getValue,
-            (i, j) -> MoreObjects.firstNonNull(i, 0) + MoreObjects.firstNonNull(j, 0));
-    try {
-      Stream.of(
-              Tables.immutableCell("one", "uno", 1),
-              Tables.immutableCell("one", "uno", (Integer) null))
-          .collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
-  }
-
-  public void testToImmutableTableMergingNullMerge() {
-    Collector<Cell<String, String, Integer>, ?, ImmutableTable<String, String, Integer>> collector =
-        ImmutableTable.toImmutableTable(
-            Cell::getRowKey, Cell::getColumnKey, Cell::getValue, (v1, v2) -> null);
-    try {
-      Stream.of(Tables.immutableCell("one", "uno", 1), Tables.immutableCell("one", "uno", 2))
-          .collect(collector);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
+            ImmutableTable.of("one", "uno", 3),
+            immutableCell("one", "uno", 1),
+            immutableCell("one", "uno", 2));
   }
 
   public void testBuilder() {
@@ -210,33 +85,21 @@ public class ImmutableTableTest extends AbstractTableReadTest {
   public void testBuilder_withImmutableCell() {
     ImmutableTable.Builder<Character, Integer, String> builder = new ImmutableTable.Builder<>();
     assertEquals(
-        ImmutableTable.of('a', 1, "foo"), builder.put(Tables.immutableCell('a', 1, "foo")).build());
+        ImmutableTable.of('a', 1, "foo"), builder.put(immutableCell('a', 1, "foo")).build());
   }
 
   public void testBuilder_withImmutableCellAndNullContents() {
     ImmutableTable.Builder<Character, Integer, String> builder = new ImmutableTable.Builder<>();
-    try {
-      builder.put(Tables.immutableCell((Character) null, 1, "foo"));
-      fail();
-    } catch (NullPointerException e) {
-      // success
-    }
-    try {
-      builder.put(Tables.immutableCell('a', (Integer) null, "foo"));
-      fail();
-    } catch (NullPointerException e) {
-      // success
-    }
-    try {
-      builder.put(Tables.immutableCell('a', 1, (String) null));
-      fail();
-    } catch (NullPointerException e) {
-      // success
-    }
+    assertThrows(
+        NullPointerException.class, () -> builder.put(immutableCell((Character) null, 1, "foo")));
+    assertThrows(
+        NullPointerException.class, () -> builder.put(immutableCell('a', (Integer) null, "foo")));
+    assertThrows(
+        NullPointerException.class, () -> builder.put(immutableCell('a', 1, (String) null)));
   }
 
   private static class StringHolder {
-    String string;
+    @Nullable String string;
   }
 
   public void testBuilder_withMutableCell() {
@@ -277,34 +140,14 @@ public class ImmutableTableTest extends AbstractTableReadTest {
         new ImmutableTable.Builder<Character, Integer, String>()
             .put('a', 1, "foo")
             .put('a', 1, "bar");
-    try {
-      builder.build();
-      fail();
-    } catch (IllegalArgumentException e) {
-      // success
-    }
+    assertThrows(IllegalArgumentException.class, () -> builder.build());
   }
 
   public void testBuilder_noNulls() {
     ImmutableTable.Builder<Character, Integer, String> builder = new ImmutableTable.Builder<>();
-    try {
-      builder.put(null, 1, "foo");
-      fail();
-    } catch (NullPointerException e) {
-      // success
-    }
-    try {
-      builder.put('a', null, "foo");
-      fail();
-    } catch (NullPointerException e) {
-      // success
-    }
-    try {
-      builder.put('a', 1, null);
-      fail();
-    } catch (NullPointerException e) {
-      // success
-    }
+    assertThrows(NullPointerException.class, () -> builder.put(null, 1, "foo"));
+    assertThrows(NullPointerException.class, () -> builder.put('a', null, "foo"));
+    assertThrows(NullPointerException.class, () -> builder.put('a', 1, null));
   }
 
   private static <R, C, V> void validateTableCopies(Table<R, C, V> original) {
@@ -604,10 +447,11 @@ public class ImmutableTableTest extends AbstractTableReadTest {
     assertThat(copy.columnKeySet()).containsExactlyElementsIn(original.columnKeySet()).inOrder();
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // Mind-bogglingly slow in GWT
   @AndroidIncompatible // slow
   public void testOverflowCondition() {
-    // See https://code.google.com/p/guava-libraries/issues/detail?id=1322 for details.
+    // See https://github.com/google/guava/issues/1322 for details.
     ImmutableTable.Builder<Integer, Integer, String> builder = ImmutableTable.builder();
     for (int i = 1; i < 0x10000; i++) {
       builder.put(i, 0, "foo");

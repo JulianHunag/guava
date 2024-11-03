@@ -25,9 +25,13 @@ import static com.google.common.cache.TestingCacheLoaders.identityLoader;
 import static com.google.common.cache.TestingRemovalListeners.countingRemovalListener;
 import static com.google.common.cache.TestingRemovalListeners.queuingRemovalListener;
 import static com.google.common.cache.TestingWeighers.constantWeigher;
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
+import static java.lang.Math.max;
+import static java.lang.Thread.State.WAITING;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -47,6 +51,7 @@ import com.google.common.cache.TestingRemovalListeners.QueuingRemovalListener;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.testing.ConcurrentMapTestSuiteBuilder;
@@ -58,9 +63,14 @@ import com.google.common.testing.FakeTicker;
 import com.google.common.testing.NullPointerTester;
 import com.google.common.testing.SerializableTester;
 import com.google.common.testing.TestLogHandler;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import java.io.Serializable;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,6 +86,7 @@ import java.util.logging.LogRecord;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** @author Charles Fry */
 @SuppressWarnings("GuardedBy") // TODO(b/35466881): Fix or suppress.
@@ -231,7 +242,7 @@ public class LocalCacheTest extends TestCase {
 
   private Throwable popLoggedThrowable() {
     List<LogRecord> logRecords = logHandler.getStoredLogRecords();
-    assertSame(1, logRecords.size());
+    assertEquals(1, logRecords.size());
     LogRecord logRecord = logRecords.get(0);
     logHandler.clear();
     return logRecord.getThrown();
@@ -245,10 +256,23 @@ public class LocalCacheTest extends TestCase {
     assertSame(t, popLoggedThrowable());
   }
 
+  /*
+   * TODO(cpovirk): Can we replace makeLocalCache with a call to builder.build()? Some tests may
+   * need access to LocalCache APIs, but maybe we can at least make makeLocalCache use
+   * builder.build() and then cast?
+   */
+
   private static <K, V> LocalCache<K, V> makeLocalCache(
       CacheBuilder<? super K, ? super V> builder) {
     return new LocalCache<>(builder, null);
   }
+
+  private static <K, V> LocalCache<K, V> makeLocalCache(
+      CacheBuilder<? super K, ? super V> builder, CacheLoader<? super K, V> loader) {
+    return new LocalCache<>(builder, loader);
+  }
+
+  // TODO(cpovirk): Inline createCacheBuilder()?
 
   private static CacheBuilder<Object, Object> createCacheBuilder() {
     return CacheBuilder.newBuilder();
@@ -329,7 +353,7 @@ public class LocalCacheTest extends TestCase {
   }
 
   public void testSetConcurrencyLevel() {
-    // round up to nearest power of two
+    // round up to the nearest power of two
 
     checkConcurrencyLevel(1, 1);
     checkConcurrencyLevel(2, 2);
@@ -348,7 +372,7 @@ public class LocalCacheTest extends TestCase {
   }
 
   public void testSetInitialCapacity() {
-    // share capacity over each segment, then round up to nearest power of two
+    // share capacity over each segment, then round up to the nearest power of two
 
     checkInitialCapacity(1, 0, 1);
     checkInitialCapacity(1, 1, 1);
@@ -428,7 +452,7 @@ public class LocalCacheTest extends TestCase {
     long totalCapacity = 0;
     assertTrue(
         "segments=" + map.segments.length + ", maxSize=" + maxSize,
-        map.segments.length <= Math.max(1, maxSize / 10));
+        map.segments.length <= max(1, maxSize / 10));
     for (int i = 0; i < map.segments.length; i++) {
       totalCapacity += map.segments[i].maxSegmentWeight;
     }
@@ -443,7 +467,7 @@ public class LocalCacheTest extends TestCase {
                 .weigher(constantWeigher(1)));
     assertTrue(
         "segments=" + map.segments.length + ", maxSize=" + maxSize,
-        map.segments.length <= Math.max(1, maxSize / 10));
+        map.segments.length <= max(1, maxSize / 10));
     totalCapacity = 0;
     for (int i = 0; i < map.segments.length; i++) {
       totalCapacity += map.segments[i].maxSegmentWeight;
@@ -492,7 +516,7 @@ public class LocalCacheTest extends TestCase {
 
   public void testSetExpireAfterWrite() {
     long duration = 42;
-    TimeUnit unit = TimeUnit.SECONDS;
+    TimeUnit unit = SECONDS;
     LocalCache<Object, Object> map =
         makeLocalCache(createCacheBuilder().expireAfterWrite(duration, unit));
     assertEquals(unit.toNanos(duration), map.expireAfterWriteNanos);
@@ -500,7 +524,7 @@ public class LocalCacheTest extends TestCase {
 
   public void testSetExpireAfterAccess() {
     long duration = 42;
-    TimeUnit unit = TimeUnit.SECONDS;
+    TimeUnit unit = SECONDS;
     LocalCache<Object, Object> map =
         makeLocalCache(createCacheBuilder().expireAfterAccess(duration, unit));
     assertEquals(unit.toNanos(duration), map.expireAfterAccessNanos);
@@ -508,10 +532,62 @@ public class LocalCacheTest extends TestCase {
 
   public void testSetRefresh() {
     long duration = 42;
-    TimeUnit unit = TimeUnit.SECONDS;
+    TimeUnit unit = SECONDS;
     LocalCache<Object, Object> map =
         makeLocalCache(createCacheBuilder().refreshAfterWrite(duration, unit));
     assertEquals(unit.toNanos(duration), map.refreshNanos);
+  }
+
+  public void testLongAsyncRefresh() throws Exception {
+    FakeTicker ticker = new FakeTicker();
+    CountDownLatch reloadStarted = new CountDownLatch(1);
+    SettableFuture<Thread> threadAboutToBlockForRefresh = SettableFuture.create();
+
+    ListeningExecutorService refreshExecutor = listeningDecorator(newSingleThreadExecutor());
+    try {
+      CacheBuilder<Object, Object> builder =
+          createCacheBuilder()
+              .expireAfterWrite(100, MILLISECONDS)
+              .refreshAfterWrite(5, MILLISECONDS)
+              .ticker(ticker);
+
+      CacheLoader<String, String> loader =
+          new CacheLoader<String, String>() {
+            @Override
+            public String load(String key) {
+              return key + "Load";
+            }
+
+            @Override
+            @SuppressWarnings("ThreadPriorityCheck") // TODO: b/175898629 - Consider onSpinWait.
+            public ListenableFuture<String> reload(String key, String oldValue) {
+              return refreshExecutor.submit(
+                  () -> {
+                    reloadStarted.countDown();
+
+                    Thread blockingForRefresh = threadAboutToBlockForRefresh.get();
+                    while (blockingForRefresh.isAlive()
+                        && blockingForRefresh.getState() != WAITING) {
+                      Thread.yield();
+                    }
+
+                    return key + "Reload";
+                  });
+            }
+          };
+      LocalCache<String, String> cache = makeLocalCache(builder, loader);
+
+      assertThat(cache.getOrLoad("test")).isEqualTo("testLoad");
+
+      ticker.advance(10, MILLISECONDS); // so that the next call will trigger refresh
+      assertThat(cache.getOrLoad("test")).isEqualTo("testLoad");
+      reloadStarted.await();
+      ticker.advance(500, MILLISECONDS); // so that the entry expires during the reload
+      threadAboutToBlockForRefresh.set(Thread.currentThread());
+      assertThat(cache.getOrLoad("test")).isEqualTo("testReload");
+    } finally {
+      refreshExecutor.shutdown();
+    }
   }
 
   public void testSetRemovalListener() {
@@ -582,7 +658,7 @@ public class LocalCacheTest extends TestCase {
 
       // access some of the elements
       Random random = new Random();
-      List<ReferenceEntry<Object, Object>> reads = Lists.newArrayList();
+      List<ReferenceEntry<Object, Object>> reads = new ArrayList<>();
       Iterator<ReferenceEntry<Object, Object>> i = readOrder.iterator();
       while (i.hasNext()) {
         ReferenceEntry<Object, Object> entry = i.next();
@@ -675,8 +751,7 @@ public class LocalCacheTest extends TestCase {
 
   @AndroidIncompatible // Perhaps emulator clock does not update between the two get() calls?
   public void testComputeExpiredEntry() throws ExecutionException {
-    CacheBuilder<Object, Object> builder =
-        createCacheBuilder().expireAfterWrite(1, TimeUnit.NANOSECONDS);
+    CacheBuilder<Object, Object> builder = createCacheBuilder().expireAfterWrite(1, NANOSECONDS);
     CountingLoader loader = new CountingLoader();
     LocalCache<Object, Object> map = makeLocalCache(builder);
     assertEquals(0, loader.getCount());
@@ -977,7 +1052,7 @@ public class LocalCacheTest extends TestCase {
         makeLocalCache(
             createCacheBuilder()
                 .concurrencyLevel(1)
-                .expireAfterWrite(3, TimeUnit.NANOSECONDS)
+                .expireAfterWrite(3, NANOSECONDS)
                 .ticker(ticker)
                 .removalListener(listener));
     assertTrue(listener.isEmpty());
@@ -1120,7 +1195,7 @@ public class LocalCacheTest extends TestCase {
             createCacheBuilder()
                 .concurrencyLevel(1)
                 .ticker(ticker)
-                .expireAfterAccess(1, TimeUnit.NANOSECONDS));
+                .expireAfterAccess(1, NANOSECONDS));
     Segment<Object, Object> segment = map.segments[0];
     // TODO(fry): check recency ordering
 
@@ -1885,7 +1960,7 @@ public class LocalCacheTest extends TestCase {
     table.set(0, entry);
     segment.count = 1;
     assertTrue(segment.removeEntry(entry, hash, RemovalCause.COLLECTED));
-    assertNotificationEnqueued(map, key, value, hash);
+    assertNotificationEnqueued(map, key, value);
     assertTrue(map.removalNotificationQueue.isEmpty());
     assertFalse(segment.accessQueue.contains(entry));
     assertFalse(segment.writeQueue.contains(entry));
@@ -1994,8 +2069,7 @@ public class LocalCacheTest extends TestCase {
     assertTrue(segment.removeLoadingValue(key, hash, valueRef));
   }
 
-  private static <K, V> void assertNotificationEnqueued(
-      LocalCache<K, V> map, K key, V value, int hash) {
+  private static <K, V> void assertNotificationEnqueued(LocalCache<K, V> map, K key, V value) {
     RemovalNotification<K, V> notification = map.removalNotificationQueue.poll();
     assertSame(key, notification.getKey());
     assertSame(value, notification.getValue());
@@ -2095,7 +2169,7 @@ public class LocalCacheTest extends TestCase {
 
       // access some of the elements
       Random random = new Random();
-      List<ReferenceEntry<Object, Object>> reads = Lists.newArrayList();
+      List<ReferenceEntry<Object, Object>> reads = new ArrayList<>();
       Iterator<ReferenceEntry<Object, Object>> i = readOrder.iterator();
       while (i.hasNext()) {
         ReferenceEntry<Object, Object> entry = i.next();
@@ -2136,7 +2210,7 @@ public class LocalCacheTest extends TestCase {
 
       // access some of the elements
       Random random = new Random();
-      List<ReferenceEntry<Object, Object>> reads = Lists.newArrayList();
+      List<ReferenceEntry<Object, Object>> reads = new ArrayList<>();
       Iterator<ReferenceEntry<Object, Object>> i = readOrder.iterator();
       while (i.hasNext()) {
         ReferenceEntry<Object, Object> entry = i.next();
@@ -2177,7 +2251,7 @@ public class LocalCacheTest extends TestCase {
 
       // access some of the elements
       Random random = new Random();
-      List<ReferenceEntry<Object, Object>> writes = Lists.newArrayList();
+      List<ReferenceEntry<Object, Object>> writes = new ArrayList<>();
       Iterator<ReferenceEntry<Object, Object>> i = writeOrder.iterator();
       while (i.hasNext()) {
         ReferenceEntry<Object, Object> entry = i.next();
@@ -2266,7 +2340,7 @@ public class LocalCacheTest extends TestCase {
             createCacheBuilder()
                 .concurrencyLevel(1)
                 .ticker(ticker)
-                .expireAfterWrite(2, TimeUnit.NANOSECONDS));
+                .expireAfterWrite(2, NANOSECONDS));
     Segment<Object, Object> segment = map.segments[0];
 
     Object key = new Object();
@@ -2307,7 +2381,7 @@ public class LocalCacheTest extends TestCase {
             createCacheBuilder()
                 .concurrencyLevel(1)
                 .ticker(ticker)
-                .expireAfterAccess(2, TimeUnit.NANOSECONDS));
+                .expireAfterAccess(2, NANOSECONDS));
     Segment<Object, Object> segment = map.segments[0];
 
     Object key = new Object();
@@ -2413,7 +2487,7 @@ public class LocalCacheTest extends TestCase {
         ReferenceEntry<Object, Object> entry = segment.getEntry(keyOne, hashOne);
 
         @SuppressWarnings("unchecked")
-        Reference<Object> reference = (Reference) entry;
+        Reference<Object> reference = (Reference<Object>) entry;
         reference.enqueue();
 
         map.put(keyTwo, valueTwo);
@@ -2443,7 +2517,7 @@ public class LocalCacheTest extends TestCase {
         ValueReference<Object, Object> valueReference = entry.getValueReference();
 
         @SuppressWarnings("unchecked")
-        Reference<Object> reference = (Reference) valueReference;
+        Reference<Object> reference = (Reference<Object>) valueReference;
         reference.enqueue();
 
         map.put(keyTwo, valueTwo);
@@ -2471,7 +2545,7 @@ public class LocalCacheTest extends TestCase {
         ReferenceEntry<Object, Object> entry = segment.getEntry(keyOne, hashOne);
 
         @SuppressWarnings("unchecked")
-        Reference<Object> reference = (Reference) entry;
+        Reference<Object> reference = (Reference<Object>) entry;
         reference.enqueue();
 
         for (int i = 0; i < SMALL_MAX_SIZE; i++) {
@@ -2502,7 +2576,7 @@ public class LocalCacheTest extends TestCase {
         ValueReference<Object, Object> valueReference = entry.getValueReference();
 
         @SuppressWarnings("unchecked")
-        Reference<Object> reference = (Reference) valueReference;
+        Reference<Object> reference = (Reference<Object>) valueReference;
         reference.enqueue();
 
         for (int i = 0; i < SMALL_MAX_SIZE; i++) {
@@ -2521,7 +2595,7 @@ public class LocalCacheTest extends TestCase {
     NullPointerTester tester = new NullPointerTester();
     tester.testAllPublicInstanceMethods(makeLocalCache(createCacheBuilder()));
     CacheLoader<Object, Object> loader = identityLoader();
-    tester.testAllPublicInstanceMethods(makeLocalCache(createCacheBuilder()));
+    tester.testAllPublicInstanceMethods(makeLocalCache(createCacheBuilder(), loader));
   }
 
   public void testSerializationProxyLoading() {
@@ -2638,15 +2712,93 @@ public class LocalCacheTest extends TestCase {
     assertEquals(localCacheTwo.ticker, localCacheThree.ticker);
   }
 
+  public void testLoadDifferentKeyInLoader() throws ExecutionException, InterruptedException {
+    LocalCache<String, String> cache = makeLocalCache(createCacheBuilder());
+    String key1 = "key1";
+    String key2 = "key2";
+
+    assertEquals(
+        key2,
+        cache.get(
+            key1,
+            new CacheLoader<String, String>() {
+              @Override
+              public String load(String key) throws Exception {
+                return cache.get(key2, identityLoader()); // loads a different key, should work
+              }
+            }));
+  }
+
+  public void testRecursiveLoad() throws InterruptedException {
+    LocalCache<String, String> cache = makeLocalCache(createCacheBuilder());
+    String key = "key";
+    CacheLoader<String, String> loader =
+        new CacheLoader<String, String>() {
+          @Override
+          public String load(String key) throws Exception {
+            return cache.get(key, identityLoader()); // recursive load, this should fail
+          }
+        };
+    testLoadThrows(key, cache, loader);
+  }
+
+  public void testRecursiveLoadWithProxy() throws InterruptedException {
+    String key = "key";
+    String otherKey = "otherKey";
+    LocalCache<String, String> cache = makeLocalCache(createCacheBuilder());
+    CacheLoader<String, String> loader =
+        new CacheLoader<String, String>() {
+          @Override
+          public String load(String key) throws Exception {
+            return cache.get(
+                key,
+                identityLoader()); // recursive load (same as the initial one), this should fail
+          }
+        };
+    CacheLoader<String, String> proxyLoader =
+        new CacheLoader<String, String>() {
+          @Override
+          public String load(String key) throws Exception {
+            return cache.get(otherKey, loader); // loads another key, is ok
+          }
+        };
+    testLoadThrows(key, cache, proxyLoader);
+  }
+
   // utility methods
+
+  private void testLoadThrows(
+      String key, LocalCache<String, String> cache, CacheLoader<String, String> loader)
+      throws InterruptedException {
+    CountDownLatch doneSignal = new CountDownLatch(1);
+    Thread thread =
+        new Thread(
+            () -> {
+              try {
+                cache.get(key, loader);
+              } catch (UncheckedExecutionException | ExecutionException e) {
+                doneSignal.countDown();
+              }
+            });
+    thread.start();
+
+    boolean done = doneSignal.await(1, SECONDS);
+    if (!done) {
+      StringBuilder builder = new StringBuilder();
+      for (StackTraceElement trace : thread.getStackTrace()) {
+        builder.append("\tat ").append(trace).append('\n');
+      }
+      fail(builder.toString());
+    }
+  }
 
   /**
    * Returns an iterable containing all combinations of maximumSize, expireAfterAccess/Write,
    * weakKeys and weak/softValues.
    */
-  @SuppressWarnings("unchecked") // varargs
   private static Iterable<CacheBuilder<Object, Object>> allEntryTypeMakers() {
-    List<CacheBuilder<Object, Object>> result = newArrayList(allKeyValueStrengthMakers());
+    List<CacheBuilder<Object, Object>> result = new ArrayList<>();
+    Iterables.addAll(result, allKeyValueStrengthMakers());
     for (CacheBuilder<Object, Object> builder : allKeyValueStrengthMakers()) {
       result.add(builder.maximumSize(SMALL_MAX_SIZE));
     }
@@ -2666,22 +2818,16 @@ public class LocalCacheTest extends TestCase {
   }
 
   /** Returns an iterable containing all combinations of maximumSize and expireAfterAccess/Write. */
-  @SuppressWarnings("unchecked") // varargs
   static Iterable<CacheBuilder<Object, Object>> allEvictingMakers() {
     return ImmutableList.of(
         createCacheBuilder().maximumSize(SMALL_MAX_SIZE),
         createCacheBuilder().expireAfterAccess(99999, SECONDS),
         createCacheBuilder().expireAfterWrite(99999, SECONDS),
-        createCacheBuilder()
-            .maximumSize(SMALL_MAX_SIZE)
-            .expireAfterAccess(SMALL_MAX_SIZE, TimeUnit.SECONDS),
-        createCacheBuilder()
-            .maximumSize(SMALL_MAX_SIZE)
-            .expireAfterWrite(SMALL_MAX_SIZE, TimeUnit.SECONDS));
+        createCacheBuilder().maximumSize(SMALL_MAX_SIZE).expireAfterAccess(SMALL_MAX_SIZE, SECONDS),
+        createCacheBuilder().maximumSize(SMALL_MAX_SIZE).expireAfterWrite(SMALL_MAX_SIZE, SECONDS));
   }
 
   /** Returns an iterable containing all combinations weakKeys and weak/softValues. */
-  @SuppressWarnings("unchecked") // varargs
   private static Iterable<CacheBuilder<Object, Object>> allKeyValueStrengthMakers() {
     return ImmutableList.of(
         createCacheBuilder(),
@@ -2695,7 +2841,7 @@ public class LocalCacheTest extends TestCase {
   // entries and values
 
   private static <K, V> DummyEntry<K, V> createDummyEntry(
-      K key, int hash, V value, ReferenceEntry<K, V> next) {
+      K key, int hash, V value, @Nullable ReferenceEntry<K, V> next) {
     DummyEntry<K, V> entry = DummyEntry.create(key, hash, next);
     DummyValueReference<K, V> valueRef = DummyValueReference.create(value);
     entry.setValueReference(valueRef);
@@ -2703,7 +2849,7 @@ public class LocalCacheTest extends TestCase {
   }
 
   static class DummyEntry<K, V> implements ReferenceEntry<K, V> {
-    private K key;
+    private @Nullable K key;
     private final int hash;
     private final ReferenceEntry<K, V> next;
 
@@ -2713,7 +2859,8 @@ public class LocalCacheTest extends TestCase {
       this.next = next;
     }
 
-    public static <K, V> DummyEntry<K, V> create(K key, int hash, ReferenceEntry<K, V> next) {
+    public static <K, V> DummyEntry<K, V> create(
+        K key, int hash, @Nullable ReferenceEntry<K, V> next) {
       return new DummyEntry<>(key, hash, next);
     }
 
@@ -2822,7 +2969,7 @@ public class LocalCacheTest extends TestCase {
   }
 
   static class DummyValueReference<K, V> implements ValueReference<K, V> {
-    private V value;
+    private @Nullable V value;
     boolean loading = false;
 
     public DummyValueReference() {
@@ -2852,7 +2999,7 @@ public class LocalCacheTest extends TestCase {
     }
 
     @Override
-    public ReferenceEntry<K, V> getEntry() {
+    public @Nullable ReferenceEntry<K, V> getEntry() {
       return null;
     }
 
@@ -2902,7 +3049,7 @@ public class LocalCacheTest extends TestCase {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
       return (o instanceof SerializableCacheLoader);
     }
   }
@@ -2918,7 +3065,7 @@ public class LocalCacheTest extends TestCase {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
       return (o instanceof SerializableRemovalListener);
     }
   }
@@ -2935,7 +3082,7 @@ public class LocalCacheTest extends TestCase {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
       return (o instanceof SerializableTicker);
     }
   }
@@ -2952,7 +3099,7 @@ public class LocalCacheTest extends TestCase {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
       return (o instanceof SerializableWeigher);
     }
   }

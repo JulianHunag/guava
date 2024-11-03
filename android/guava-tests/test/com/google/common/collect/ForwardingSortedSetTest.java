@@ -16,6 +16,8 @@
 
 package com.google.common.collect;
 
+import static java.util.Arrays.asList;
+
 import com.google.common.base.Function;
 import com.google.common.collect.testing.SafeTreeSet;
 import com.google.common.collect.testing.SortedSetTestSuiteBuilder;
@@ -24,13 +26,13 @@ import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.ForwardingWrapperTester;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.SortedSet;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Tests for {@code ForwardingSortedSet}.
@@ -51,7 +53,7 @@ public class ForwardingSortedSetTest extends TestCase {
     }
 
     @Override
-    public boolean equals(Object object) {
+    public boolean equals(@Nullable Object object) {
       return standardEquals(object);
     }
 
@@ -126,7 +128,7 @@ public class ForwardingSortedSetTest extends TestCase {
                   @Override
                   protected SortedSet<String> create(String[] elements) {
                     return new StandardImplForwardingSortedSet<>(
-                        new SafeTreeSet<String>(Arrays.asList(elements)));
+                        new SafeTreeSet<String>(asList(elements)));
                   }
 
                   @Override

@@ -16,10 +16,16 @@
 
 package com.google.common.hash;
 
+import static com.google.common.truth.Truth.assertThat;
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_16;
+import static java.nio.charset.StandardCharsets.UTF_16BE;
+import static java.nio.charset.StandardCharsets.UTF_16LE;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
@@ -195,8 +201,8 @@ final class HashTestUtils {
         int limit = pos + random.nextInt(value.length - pos + 1);
         for (PrimitiveSink sink : sinks) {
           ByteBuffer buffer = ByteBuffer.wrap(value);
-          buffer.position(pos);
-          buffer.limit(limit);
+          Java8Compatibility.position(buffer, pos);
+          Java8Compatibility.limit(buffer, limit);
           sink.putBytes(buffer);
           assertEquals(limit, buffer.limit());
           assertEquals(limit, buffer.position());
@@ -353,7 +359,7 @@ final class HashTestUtils {
       // measure probability and assert it's within margin of error
       for (int j = 0; j < hashBits; j++) {
         double prob = (double) diff[j] / (double) (diff[j] + same[j]);
-        Assert.assertEquals(0.50d, prob, epsilon);
+        assertThat(prob).isWithin(epsilon).of(0.50d);
       }
     }
   }
@@ -376,7 +382,7 @@ final class HashTestUtils {
       for (int j = 0; j < keyBits; j++) {
         if (j <= i) continue;
         int count = 0;
-        int maxCount = 20; // the probability of error here is miniscule
+        int maxCount = 20; // the probability of error here is minuscule
         boolean diff = false;
 
         while (!diff) {
@@ -450,7 +456,7 @@ final class HashTestUtils {
         // measure probability and assert it's within margin of error
         for (int j = 0; j < hashBits; j++) {
           double prob = (double) diff[j] / (double) (diff[j] + same[j]);
-          Assert.assertEquals(0.50d, prob, epsilon);
+          assertThat(prob).isWithin(epsilon).of(0.50d);
         }
       }
     }
@@ -509,9 +515,9 @@ final class HashTestUtils {
     rng.nextBytes(bytes);
     ByteBuffer littleEndian = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
     ByteBuffer bigEndian = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
-    assertEquals(hashFunction.hashBytes(littleEndian), hashFunction.hashBytes(littleEndian));
+    assertEquals(hashFunction.hashBytes(littleEndian), hashFunction.hashBytes(bigEndian));
     assertEquals(ByteOrder.LITTLE_ENDIAN, littleEndian.order());
-    assertEquals(ByteOrder.BIG_ENDIAN, littleEndian.order());
+    assertEquals(ByteOrder.BIG_ENDIAN, bigEndian.order());
   }
 
   static void assertHasherByteBufferPreservesByteOrder(HashFunction hashFunction) {
@@ -522,9 +528,9 @@ final class HashTestUtils {
     ByteBuffer bigEndian = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
     assertEquals(
         hashFunction.newHasher().putBytes(littleEndian).hash(),
-        hashFunction.newHasher().putBytes(littleEndian).hash());
+        hashFunction.newHasher().putBytes(bigEndian).hash());
     assertEquals(ByteOrder.LITTLE_ENDIAN, littleEndian.order());
-    assertEquals(ByteOrder.BIG_ENDIAN, littleEndian.order());
+    assertEquals(ByteOrder.BIG_ENDIAN, bigEndian.order());
   }
 
   static void assertHashBytesThrowsCorrectExceptions(HashFunction hashFunction) {
@@ -627,13 +633,7 @@ final class HashTestUtils {
   }
 
   private static final ImmutableSet<Charset> CHARSETS =
-      ImmutableSet.of(
-          Charsets.ISO_8859_1,
-          Charsets.US_ASCII,
-          Charsets.UTF_16,
-          Charsets.UTF_16BE,
-          Charsets.UTF_16LE,
-          Charsets.UTF_8);
+      ImmutableSet.of(ISO_8859_1, US_ASCII, UTF_16, UTF_16BE, UTF_16LE, UTF_8);
 
   private static void assertHashStringEquivalence(HashFunction hashFunction, Random random) {
     // Test that only data and data-order is important, not the individual operations.
@@ -657,7 +657,7 @@ final class HashTestUtils {
     int size = random.nextInt(2048);
     byte[] bytes = new byte[size];
     random.nextBytes(bytes);
-    String string = new String(bytes, Charsets.US_ASCII);
+    String string = new String(bytes, US_ASCII);
     assertEquals(
         hashFunction.hashUnencodedChars(string),
         hashFunction.newHasher().putUnencodedChars(string).hash());

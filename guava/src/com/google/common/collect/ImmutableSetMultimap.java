@@ -17,13 +17,17 @@
 package com.google.common.collect;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.CollectPreconditions.checkNonnegative;
+import static java.lang.Math.max;
+import static java.util.Arrays.asList;
+import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Preconditions;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import com.google.errorprone.annotations.DoNotCall;
 import com.google.errorprone.annotations.concurrent.LazyInit;
 import com.google.j2objc.annotations.RetainedWith;
 import com.google.j2objc.annotations.Weak;
@@ -31,29 +35,33 @@ import java.io.IOException;
 import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collector;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import javax.annotation.CheckForNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * A {@link SetMultimap} whose contents will never change, with many other important properties
  * detailed at {@link ImmutableCollection}.
  *
+ * <p><b>Warning:</b> As in all {@link SetMultimap}s, do not modify either a key <i>or a value</i>
+ * of a {@code ImmutableSetMultimap} in a way that affects its {@link Object#equals} behavior.
+ * Undefined behavior and bugs will result.
+ *
  * <p>See the Guava User Guide article on <a href=
- * "https://github.com/google/guava/wiki/ImmutableCollectionsExplained"> immutable collections</a>.
+ * "https://github.com/google/guava/wiki/ImmutableCollectionsExplained">immutable collections</a>.
  *
  * @author Mike Ward
  * @since 2.0
  */
 @GwtCompatible(serializable = true, emulated = true)
+@ElementTypesAreNonnullByDefault
 public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
     implements SetMultimap<K, V> {
   /**
@@ -61,8 +69,9 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
    * whose keys and values are the result of applying the provided mapping functions to the input
    * elements.
    *
-   * <p>For streams with {@linkplain java.util.stream#Ordering defined encounter order}, that order
-   * is preserved, but entries are <a href="ImmutableMultimap.html#iteration">grouped by key</a>.
+   * <p>For streams with defined encounter order (as defined in the Ordering section of the {@link
+   * java.util.stream} Javadoc), that order is preserved, but entries are <a
+   * href="ImmutableMultimap.html#iteration">grouped by key</a>.
    *
    * <p>Example:
    *
@@ -83,17 +92,11 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
    *
    * @since 21.0
    */
-  @Beta
-  public static <T, K, V> Collector<T, ?, ImmutableSetMultimap<K, V>> toImmutableSetMultimap(
-      Function<? super T, ? extends K> keyFunction,
-      Function<? super T, ? extends V> valueFunction) {
-    checkNotNull(keyFunction, "keyFunction");
-    checkNotNull(valueFunction, "valueFunction");
-    return Collector.of(
-        ImmutableSetMultimap::<K, V>builder,
-        (builder, t) -> builder.put(keyFunction.apply(t), valueFunction.apply(t)),
-        ImmutableSetMultimap.Builder::combine,
-        ImmutableSetMultimap.Builder::build);
+  public static <T extends @Nullable Object, K, V>
+      Collector<T, ?, ImmutableSetMultimap<K, V>> toImmutableSetMultimap(
+          Function<? super T, ? extends K> keyFunction,
+          Function<? super T, ? extends V> valueFunction) {
+    return CollectCollectors.toImmutableSetMultimap(keyFunction, valueFunction);
   }
 
   /**
@@ -136,22 +139,18 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
    *
    * @since 21.0
    */
-  @Beta
-  public static <T, K, V>
+  public static <T extends @Nullable Object, K, V>
       Collector<T, ?, ImmutableSetMultimap<K, V>> flatteningToImmutableSetMultimap(
           Function<? super T, ? extends K> keyFunction,
           Function<? super T, ? extends Stream<? extends V>> valuesFunction) {
-    checkNotNull(keyFunction);
-    checkNotNull(valuesFunction);
-    return Collectors.collectingAndThen(
-        Multimaps.flatteningToMultimap(
-            input -> checkNotNull(keyFunction.apply(input)),
-            input -> valuesFunction.apply(input).peek(Preconditions::checkNotNull),
-            MultimapBuilder.linkedHashKeys().linkedHashSetValues()::<K, V>build),
-        ImmutableSetMultimap::copyOf);
+    return CollectCollectors.flatteningToImmutableSetMultimap(keyFunction, valuesFunction);
   }
 
-  /** Returns the empty multimap. */
+  /**
+   * Returns the empty multimap.
+   *
+   * <p><b>Performance note:</b> the instance returned is a singleton.
+   */
   // Casting is safe because the multimap will never hold any elements.
   @SuppressWarnings("unchecked")
   public static <K, V> ImmutableSetMultimap<K, V> of() {
@@ -225,6 +224,19 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
   }
 
   /**
+   * Returns a new builder with a hint for how many distinct keys are expected to be added. The
+   * generated builder is equivalent to that returned by {@link #builder}, but may perform better if
+   * {@code expectedKeys} is a good estimate.
+   *
+   * @throws IllegalArgumentException if {@code expectedKeys} is negative
+   * @since 33.3.0
+   */
+  public static <K, V> Builder<K, V> builderWithExpectedKeys(int expectedKeys) {
+    checkNonnegative(expectedKeys, "expectedKeys");
+    return new Builder<>(expectedKeys);
+  }
+
+  /**
    * A builder for creating immutable {@code SetMultimap} instances, especially {@code public static
    * final} multimaps ("constant multimaps"). Example:
    *
@@ -252,9 +264,41 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
       super();
     }
 
+    Builder(int expectedKeys) {
+      super(expectedKeys);
+    }
+
     @Override
-    Collection<V> newMutableValueCollection() {
-      return Platform.preservesInsertionOrderOnAddsSet();
+    ImmutableCollection.Builder<V> newValueCollectionBuilderWithExpectedSize(int expectedSize) {
+      return (valueComparator == null)
+          ? ImmutableSet.builderWithExpectedSize(expectedSize)
+          : new ImmutableSortedSet.Builder<V>(valueComparator, expectedSize);
+    }
+
+    @Override
+    int expectedValueCollectionSize(int defaultExpectedValues, Iterable<?> values) {
+      // Only trust the size of `values` if it is a Set and therefore probably already deduplicated.
+      if (values instanceof Set<?>) {
+        Set<?> collection = (Set<?>) values;
+        return max(defaultExpectedValues, collection.size());
+      } else {
+        return defaultExpectedValues;
+      }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Note that {@code expectedValuesPerKey} is taken to mean the expected number of
+     * <i>distinct</i> values per key.
+     *
+     * @since 33.3.0
+     */
+    @CanIgnoreReturnValue
+    @Override
+    public Builder<K, V> expectedValuesPerKey(int expectedValuesPerKey) {
+      super.expectedValuesPerKey(expectedValuesPerKey);
+      return this;
     }
 
     /** Adds a key-value mapping to the built multimap if it is not already present. */
@@ -283,7 +327,6 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
      * @since 19.0
      */
     @CanIgnoreReturnValue
-    @Beta
     @Override
     public Builder<K, V> putAll(Iterable<? extends Entry<? extends K, ? extends V>> entries) {
       super.putAll(entries);
@@ -300,7 +343,7 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
     @CanIgnoreReturnValue
     @Override
     public Builder<K, V> putAll(K key, V... values) {
-      return putAll(key, Arrays.asList(values));
+      return putAll(key, asList(values));
     }
 
     @CanIgnoreReturnValue
@@ -353,11 +396,14 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
     /** Returns a newly-created immutable set multimap. */
     @Override
     public ImmutableSetMultimap<K, V> build() {
-      Collection<Map.Entry<K, Collection<V>>> mapEntries = builderMap.entrySet();
+      if (builderMap == null) {
+        return ImmutableSetMultimap.of();
+      }
+      Collection<Map.Entry<K, ImmutableCollection.Builder<V>>> mapEntries = builderMap.entrySet();
       if (keyComparator != null) {
         mapEntries = Ordering.from(keyComparator).<K>onKeys().immutableSortedCopy(mapEntries);
       }
-      return fromMapEntries(mapEntries, valueComparator);
+      return fromMapBuilderEntries(mapEntries, valueComparator);
     }
   }
 
@@ -379,7 +425,8 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
   }
 
   private static <K, V> ImmutableSetMultimap<K, V> copyOf(
-      Multimap<? extends K, ? extends V> multimap, Comparator<? super V> valueComparator) {
+      Multimap<? extends K, ? extends V> multimap,
+      @CheckForNull Comparator<? super V> valueComparator) {
     checkNotNull(multimap); // eager for GWT
     if (multimap.isEmpty() && valueComparator == null) {
       return of();
@@ -405,7 +452,6 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
    * @throws NullPointerException if any key, value, or entry is null
    * @since 19.0
    */
-  @Beta
   public static <K, V> ImmutableSetMultimap<K, V> copyOf(
       Iterable<? extends Entry<? extends K, ? extends V>> entries) {
     return new Builder<K, V>().putAll(entries).build();
@@ -414,7 +460,7 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
   /** Creates an ImmutableSetMultimap from an asMap.entrySet. */
   static <K, V> ImmutableSetMultimap<K, V> fromMapEntries(
       Collection<? extends Map.Entry<? extends K, ? extends Collection<? extends V>>> mapEntries,
-      @Nullable Comparator<? super V> valueComparator) {
+      @CheckForNull Comparator<? super V> valueComparator) {
     if (mapEntries.isEmpty()) {
       return of();
     }
@@ -432,7 +478,33 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
       }
     }
 
-    return new ImmutableSetMultimap<>(builder.build(), size, valueComparator);
+    return new ImmutableSetMultimap<>(builder.buildOrThrow(), size, valueComparator);
+  }
+
+  /** Creates an ImmutableSetMultimap from a map to builders. */
+  static <K, V> ImmutableSetMultimap<K, V> fromMapBuilderEntries(
+      Collection<? extends Map.Entry<K, ImmutableCollection.Builder<V>>> mapEntries,
+      @CheckForNull Comparator<? super V> valueComparator) {
+    if (mapEntries.isEmpty()) {
+      return of();
+    }
+    ImmutableMap.Builder<K, ImmutableSet<V>> builder =
+        new ImmutableMap.Builder<>(mapEntries.size());
+    int size = 0;
+
+    for (Entry<K, ImmutableCollection.Builder<V>> entry : mapEntries) {
+      K key = entry.getKey();
+      ImmutableSet.Builder<? extends V> values = (ImmutableSet.Builder<V>) entry.getValue();
+      // If orderValuesBy got called at the very end, we may need to do the ImmutableSet to
+      // ImmutableSortedSet copy for each of these.
+      ImmutableSet<V> set = valueSet(valueComparator, values.build());
+      if (!set.isEmpty()) {
+        builder.put(key, set);
+        size += set.size();
+      }
+    }
+
+    return new ImmutableSetMultimap<>(builder.buildOrThrow(), size, valueComparator);
   }
 
   /**
@@ -444,7 +516,7 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
   ImmutableSetMultimap(
       ImmutableMap<K, ImmutableSet<V>> map,
       int size,
-      @Nullable Comparator<? super V> valueComparator) {
+      @CheckForNull Comparator<? super V> valueComparator) {
     super(map, size);
     this.emptySet = emptySet(valueComparator);
   }
@@ -457,13 +529,13 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
    * parameters used to build this multimap.
    */
   @Override
-  public ImmutableSet<V> get(@Nullable K key) {
+  public ImmutableSet<V> get(K key) {
     // This cast is safe as its type is known in constructor.
     ImmutableSet<V> set = (ImmutableSet<V>) map.get(key);
     return MoreObjects.firstNonNull(set, emptySet);
   }
 
-  @LazyInit @MonotonicNonNull @RetainedWith private transient ImmutableSetMultimap<V, K> inverse;
+  @LazyInit @RetainedWith @CheckForNull private transient ImmutableSetMultimap<V, K> inverse;
 
   /**
    * {@inheritDoc}
@@ -471,9 +543,8 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
    * <p>Because an inverse of a set multimap cannot contain multiple pairs with the same key and
    * value, this method returns an {@code ImmutableSetMultimap} rather than the {@code
    * ImmutableMultimap} specified in the {@code ImmutableMultimap} class.
-   *
-   * @since 11.0
    */
+  @Override
   public ImmutableSetMultimap<V, K> inverse() {
     ImmutableSetMultimap<V, K> result = inverse;
     return (result == null) ? (inverse = invert()) : result;
@@ -498,7 +569,8 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
   @CanIgnoreReturnValue
   @Deprecated
   @Override
-  public ImmutableSet<V> removeAll(Object key) {
+  @DoNotCall("Always throws UnsupportedOperationException")
+  public final ImmutableSet<V> removeAll(@CheckForNull Object key) {
     throw new UnsupportedOperationException();
   }
 
@@ -511,11 +583,12 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
   @CanIgnoreReturnValue
   @Deprecated
   @Override
-  public ImmutableSet<V> replaceValues(K key, Iterable<? extends V> values) {
+  @DoNotCall("Always throws UnsupportedOperationException")
+  public final ImmutableSet<V> replaceValues(K key, Iterable<? extends V> values) {
     throw new UnsupportedOperationException();
   }
 
-  private transient @MonotonicNonNull ImmutableSet<Entry<K, V>> entries;
+  @LazyInit @RetainedWith @CheckForNull private transient ImmutableSet<Entry<K, V>> entries;
 
   /**
    * Returns an immutable collection of all key-value pairs in the multimap. Its iterator traverses
@@ -535,7 +608,7 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
     }
 
     @Override
-    public boolean contains(@Nullable Object object) {
+    public boolean contains(@CheckForNull Object object) {
       if (object instanceof Entry) {
         Entry<?, ?> entry = (Entry<?, ?>) object;
         return multimap.containsEntry(entry.getKey(), entry.getValue());
@@ -557,23 +630,32 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
     boolean isPartialView() {
       return false;
     }
+
+    // redeclare to help optimizers with b/310253115
+    @SuppressWarnings("RedundantOverride")
+    @Override
+    @J2ktIncompatible // serialization
+    @GwtIncompatible // serialization
+    Object writeReplace() {
+      return super.writeReplace();
+    }
   }
 
   private static <V> ImmutableSet<V> valueSet(
-      @Nullable Comparator<? super V> valueComparator, Collection<? extends V> values) {
+      @CheckForNull Comparator<? super V> valueComparator, Collection<? extends V> values) {
     return (valueComparator == null)
         ? ImmutableSet.copyOf(values)
         : ImmutableSortedSet.copyOf(valueComparator, values);
   }
 
-  private static <V> ImmutableSet<V> emptySet(@Nullable Comparator<? super V> valueComparator) {
+  private static <V> ImmutableSet<V> emptySet(@CheckForNull Comparator<? super V> valueComparator) {
     return (valueComparator == null)
         ? ImmutableSet.<V>of()
         : ImmutableSortedSet.<V>emptySet(valueComparator);
   }
 
   private static <V> ImmutableSet.Builder<V> valuesBuilder(
-      @Nullable Comparator<? super V> valueComparator) {
+      @CheckForNull Comparator<? super V> valueComparator) {
     return (valueComparator == null)
         ? new ImmutableSet.Builder<V>()
         : new ImmutableSortedSet.Builder<V>(valueComparator);
@@ -584,26 +666,30 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
    *     values for that key, and the key's values
    */
   @GwtIncompatible // java.io.ObjectOutputStream
+  @J2ktIncompatible
   private void writeObject(ObjectOutputStream stream) throws IOException {
     stream.defaultWriteObject();
     stream.writeObject(valueComparator());
     Serialization.writeMultimap(this, stream);
   }
 
-  @Nullable
+  @CheckForNull
   Comparator<? super V> valueComparator() {
     return emptySet instanceof ImmutableSortedSet
         ? ((ImmutableSortedSet<V>) emptySet).comparator()
         : null;
   }
-  
+
   @GwtIncompatible // java serialization
+  @J2ktIncompatible
   private static final class SetFieldSettersHolder {
-    static final Serialization.FieldSetter<ImmutableSetMultimap> EMPTY_SET_FIELD_SETTER =
-        Serialization.getFieldSetter(ImmutableSetMultimap.class, "emptySet");
+    static final Serialization.FieldSetter<? super ImmutableSetMultimap<?, ?>>
+        EMPTY_SET_FIELD_SETTER =
+            Serialization.getFieldSetter(ImmutableSetMultimap.class, "emptySet");
   }
 
   @GwtIncompatible // java.io.ObjectInputStream
+  @J2ktIncompatible
   // Serialization type safety is at the caller's mercy.
   @SuppressWarnings("unchecked")
   private void readObject(ObjectInputStream stream) throws IOException, ClassNotFoundException {
@@ -617,7 +703,7 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
     int tmpSize = 0;
 
     for (int i = 0; i < keyCount; i++) {
-      Object key = stream.readObject();
+      Object key = requireNonNull(stream.readObject());
       int valueCount = stream.readInt();
       if (valueCount <= 0) {
         throw new InvalidObjectException("Invalid value count " + valueCount);
@@ -625,7 +711,7 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
 
       ImmutableSet.Builder<Object> valuesBuilder = valuesBuilder(valueComparator);
       for (int j = 0; j < valueCount; j++) {
-        valuesBuilder.add(stream.readObject());
+        valuesBuilder.add(requireNonNull(stream.readObject()));
       }
       ImmutableSet<Object> valueSet = valuesBuilder.build();
       if (valueSet.size() != valueCount) {
@@ -637,7 +723,7 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
 
     ImmutableMap<Object, ImmutableSet<Object>> tmpMap;
     try {
-      tmpMap = builder.build();
+      tmpMap = builder.buildOrThrow();
     } catch (IllegalArgumentException e) {
       throw (InvalidObjectException) new InvalidObjectException(e.getMessage()).initCause(e);
     }
@@ -648,5 +734,6 @@ public class ImmutableSetMultimap<K, V> extends ImmutableMultimap<K, V>
   }
 
   @GwtIncompatible // not needed in emulated source.
+  @J2ktIncompatible
   private static final long serialVersionUID = 0;
 }

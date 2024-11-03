@@ -33,7 +33,6 @@ import static java.lang.Math.rint;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.primitives.Booleans;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.math.BigInteger;
 import java.math.RoundingMode;
@@ -46,6 +45,7 @@ import java.util.Iterator;
  * @since 11.0
  */
 @GwtCompatible(emulated = true)
+@ElementTypesAreNonnullByDefault
 public final class DoubleMath {
   /*
    * This method returns a value y such that rounding y DOWN (towards zero) gives the same result as
@@ -107,10 +107,8 @@ public final class DoubleMath {
             return z;
           }
         }
-
-      default:
-        throw new AssertionError();
     }
+    throw new AssertionError();
   }
 
   /**
@@ -128,6 +126,8 @@ public final class DoubleMath {
    *     </ul>
    */
   @GwtIncompatible // #roundIntermediate
+  // Whenever both tests are cheap and functional, it's faster to use &, | instead of &&, ||
+  @SuppressWarnings("ShortCircuitBoolean")
   public static int roundToInt(double x, RoundingMode mode) {
     double z = roundIntermediate(x, mode);
     checkInRangeForRoundingInputs(
@@ -153,6 +153,8 @@ public final class DoubleMath {
    *     </ul>
    */
   @GwtIncompatible // #roundIntermediate
+  // Whenever both tests are cheap and functional, it's faster to use &, | instead of &&, ||
+  @SuppressWarnings("ShortCircuitBoolean")
   public static long roundToLong(double x, RoundingMode mode) {
     double z = roundIntermediate(x, mode);
     checkInRangeForRoundingInputs(
@@ -180,6 +182,8 @@ public final class DoubleMath {
    */
   // #roundIntermediate, java.lang.Math.getExponent, com.google.common.math.DoubleUtils
   @GwtIncompatible
+  // Whenever both tests are cheap and functional, it's faster to use &, | instead of &&, ||
+  @SuppressWarnings("ShortCircuitBoolean")
   public static BigInteger roundToBigInteger(double x, RoundingMode mode) {
     x = roundIntermediate(x, mode);
     if (MIN_LONG_AS_DOUBLE - x < 1.0 & x < MAX_LONG_AS_DOUBLE_PLUS_ONE) {
@@ -234,7 +238,8 @@ public final class DoubleMath {
    *     infinite
    */
   @GwtIncompatible // java.lang.Math.getExponent, com.google.common.math.DoubleUtils
-  @SuppressWarnings("fallthrough")
+  // Whenever both tests are cheap and functional, it's faster to use &, | instead of &&, ||
+  @SuppressWarnings({"fallthrough", "ShortCircuitBoolean"})
   public static int log2(double x, RoundingMode mode) {
     checkArgument(x > 0.0 && isFinite(x), "x must be positive and finite");
     int exponent = getExponent(x);
@@ -385,7 +390,7 @@ public final class DoubleMath {
     } else if (a > b) {
       return 1;
     } else {
-      return Booleans.compare(Double.isNaN(a), Double.isNaN(b));
+      return Boolean.compare(Double.isNaN(a), Double.isNaN(b));
     }
   }
 
@@ -432,7 +437,7 @@ public final class DoubleMath {
   @Deprecated
   public static double mean(int... values) {
     checkArgument(values.length > 0, "Cannot take mean of 0 values");
-    // The upper bound on the the length of an array and the bounds on the int values mean that, in
+    // The upper bound on the length of an array and the bounds on the int values mean that, in
     // this case only, we can compute the sum as a long without risking overflow or loss of
     // precision. So we do that, as it's slightly quicker than the Knuth algorithm.
     long sum = 0;

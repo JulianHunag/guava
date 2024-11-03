@@ -17,7 +17,8 @@
 package com.google.common.collect;
 
 import com.google.common.annotations.GwtIncompatible;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import com.google.common.annotations.J2ktIncompatible;
+import javax.annotation.CheckForNull;
 
 /**
  * Skeletal implementation of {@link ImmutableSortedSet#descendingSet()}.
@@ -25,6 +26,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * @author Louis Wasserman
  */
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 final class DescendingImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   private final ImmutableSortedSet<E> forward;
 
@@ -34,7 +36,7 @@ final class DescendingImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   }
 
   @Override
-  public boolean contains(@NullableDecl Object object) {
+  public boolean contains(@CheckForNull Object object) {
     return forward.contains(object);
   }
 
@@ -83,27 +85,31 @@ final class DescendingImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   }
 
   @Override
+  @CheckForNull
   public E lower(E element) {
     return forward.higher(element);
   }
 
   @Override
+  @CheckForNull
   public E floor(E element) {
     return forward.ceiling(element);
   }
 
   @Override
+  @CheckForNull
   public E ceiling(E element) {
     return forward.floor(element);
   }
 
   @Override
+  @CheckForNull
   public E higher(E element) {
     return forward.lower(element);
   }
 
   @Override
-  int indexOf(@NullableDecl Object target) {
+  int indexOf(@CheckForNull Object target) {
     int index = forward.indexOf(target);
     if (index == -1) {
       return index;
@@ -115,5 +121,13 @@ final class DescendingImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   @Override
   boolean isPartialView() {
     return forward.isPartialView();
+  }
+
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
+  @Override
+  @J2ktIncompatible // serialization
+  Object writeReplace() {
+    return super.writeReplace();
   }
 }

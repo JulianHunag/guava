@@ -17,8 +17,10 @@
 package com.google.common.graph;
 
 import com.google.common.annotations.Beta;
+import com.google.errorprone.annotations.DoNotMock;
+import java.util.Collection;
 import java.util.Set;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import javax.annotation.CheckForNull;
 
 /**
  * An interface for <a
@@ -100,6 +102,8 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * @since 20.0
  */
 @Beta
+@DoNotMock("Use GraphBuilder to create a real instance")
+@ElementTypesAreNonnullByDefault
 public interface Graph<N> extends BaseGraph<N> {
   //
   // Graph-level accessors
@@ -137,12 +141,37 @@ public interface Graph<N> extends BaseGraph<N> {
   @Override
   ElementOrder<N> nodeOrder();
 
+  /**
+   * Returns an {@link ElementOrder} that specifies the order of iteration for the elements of
+   * {@link #edges()}, {@link #adjacentNodes(Object)}, {@link #predecessors(Object)}, {@link
+   * #successors(Object)} and {@link #incidentEdges(Object)}.
+   *
+   * @since 29.0
+   */
+  @Override
+  ElementOrder<N> incidentEdgeOrder();
+
   //
   // Element-level accessors
   //
 
   /**
-   * Returns the nodes which have an incident edge in common with {@code node} in this graph.
+   * Returns a live view of the nodes which have an incident edge in common with {@code node} in
+   * this graph.
+   *
+   * <p>This is equal to the union of {@link #predecessors(Object)} and {@link #successors(Object)}.
+   *
+   * <p>If {@code node} is removed from the graph after this method is called, the {@code Set}
+   * {@code view} returned by this method will be invalidated, and will throw {@code
+   * IllegalStateException} if it is accessed in any way, with the following exceptions:
+   *
+   * <ul>
+   *   <li>{@code view.equals(view)} evaluates to {@code true} (but any other {@code equals()}
+   *       expression involving {@code view} will throw)
+   *   <li>{@code hashCode()} does not throw
+   *   <li>if {@code node} is re-added to the graph after having been removed, {@code view}'s
+   *       behavior is undefined
+   * </ul>
    *
    * @throws IllegalArgumentException if {@code node} is not an element of this graph
    */
@@ -150,10 +179,22 @@ public interface Graph<N> extends BaseGraph<N> {
   Set<N> adjacentNodes(N node);
 
   /**
-   * Returns all nodes in this graph adjacent to {@code node} which can be reached by traversing
-   * {@code node}'s incoming edges <i>against</i> the direction (if any) of the edge.
+   * Returns a live view of all nodes in this graph adjacent to {@code node} which can be reached by
+   * traversing {@code node}'s incoming edges <i>against</i> the direction (if any) of the edge.
    *
    * <p>In an undirected graph, this is equivalent to {@link #adjacentNodes(Object)}.
+   *
+   * <p>If {@code node} is removed from the graph after this method is called, the {@code Set}
+   * {@code view} returned by this method will be invalidated, and will throw {@code
+   * IllegalStateException} if it is accessed in any way, with the following exceptions:
+   *
+   * <ul>
+   *   <li>{@code view.equals(view)} evaluates to {@code true} (but any other {@code equals()}
+   *       expression involving {@code view} will throw)
+   *   <li>{@code hashCode()} does not throw
+   *   <li>if {@code node} is re-added to the graph after having been removed, {@code view}'s
+   *       behavior is undefined
+   * </ul>
    *
    * @throws IllegalArgumentException if {@code node} is not an element of this graph
    */
@@ -161,13 +202,25 @@ public interface Graph<N> extends BaseGraph<N> {
   Set<N> predecessors(N node);
 
   /**
-   * Returns all nodes in this graph adjacent to {@code node} which can be reached by traversing
-   * {@code node}'s outgoing edges in the direction (if any) of the edge.
+   * Returns a live view of all nodes in this graph adjacent to {@code node} which can be reached by
+   * traversing {@code node}'s outgoing edges in the direction (if any) of the edge.
    *
    * <p>In an undirected graph, this is equivalent to {@link #adjacentNodes(Object)}.
    *
    * <p>This is <i>not</i> the same as "all nodes reachable from {@code node} by following outgoing
    * edges". For that functionality, see {@link Graphs#reachableNodes(Graph, Object)}.
+   *
+   * <p>If {@code node} is removed from the graph after this method is called, the {@code Set}
+   * {@code view} returned by this method will be invalidated, and will throw {@code
+   * IllegalStateException} if it is accessed in any way, with the following exceptions:
+   *
+   * <ul>
+   *   <li>{@code view.equals(view)} evaluates to {@code true} (but any other {@code equals()}
+   *       expression involving {@code view} will throw)
+   *   <li>{@code hashCode()} does not throw
+   *   <li>if {@code node} is re-added to the graph after having been removed, {@code view}'s
+   *       behavior is undefined
+   * </ul>
    *
    * @throws IllegalArgumentException if {@code node} is not an element of this graph
    */
@@ -175,7 +228,21 @@ public interface Graph<N> extends BaseGraph<N> {
   Set<N> successors(N node);
 
   /**
-   * Returns the edges in this graph whose endpoints include {@code node}.
+   * Returns a live view of the edges in this graph whose endpoints include {@code node}.
+   *
+   * <p>This is equal to the union of incoming and outgoing edges.
+   *
+   * <p>If {@code node} is removed from the graph after this method is called, the {@code Set}
+   * {@code view} returned by this method will be invalidated, and will throw {@code
+   * IllegalStateException} if it is accessed in any way, with the following exceptions:
+   *
+   * <ul>
+   *   <li>{@code view.equals(view)} evaluates to {@code true} (but any other {@code equals()}
+   *       expression involving {@code view} will throw)
+   *   <li>{@code hashCode()} does not throw
+   *   <li>if {@code node} is re-added to the graph after having been removed, {@code view}'s
+   *       behavior is undefined
+   * </ul>
    *
    * @throws IllegalArgumentException if {@code node} is not an element of this graph
    * @since 24.0
@@ -243,7 +310,7 @@ public interface Graph<N> extends BaseGraph<N> {
    * throw if the object cannot be present in the collection), and the desire to have this method's
    * behavior be compatible with {@code edges().contains(endpoints)}.
    *
-   * @since NEXT
+   * @since 27.1
    */
   @Override
   boolean hasEdgeConnecting(EndpointPair<N> endpoints);
@@ -272,7 +339,7 @@ public interface Graph<N> extends BaseGraph<N> {
    * <p>A reference implementation of this is provided by {@link AbstractGraph#equals(Object)}.
    */
   @Override
-  boolean equals(@NullableDecl Object object);
+  boolean equals(@CheckForNull Object object);
 
   /**
    * Returns the hash code for this graph. The hash code of a graph is defined as the hash code of

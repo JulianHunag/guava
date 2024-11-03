@@ -16,8 +16,11 @@
 
 package com.google.common.escape;
 
+import static com.google.common.escape.ReflectionFreeAssertThrows.assertThrows;
+
 import com.google.common.annotations.GwtCompatible;
 import junit.framework.TestCase;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Tests for {@link UnicodeEscaper}.
@@ -39,7 +42,7 @@ public class UnicodeEscaperTest extends TestCase {
   private static final UnicodeEscaper NOP_ESCAPER =
       new UnicodeEscaper() {
         @Override
-        protected char[] escape(int c) {
+        protected char @Nullable [] escape(int c) {
           return null;
         }
       };
@@ -48,7 +51,7 @@ public class UnicodeEscaperTest extends TestCase {
   private static final UnicodeEscaper SIMPLE_ESCAPER =
       new UnicodeEscaper() {
         @Override
-        protected char[] escape(int cp) {
+        protected char @Nullable [] escape(int cp) {
           return ('a' <= cp && cp <= 'z') || ('A' <= cp && cp <= 'Z') || ('0' <= cp && cp <= '9')
               ? null
               : ("[" + String.valueOf(cp) + "]").toCharArray();
@@ -112,28 +115,13 @@ public class UnicodeEscaperTest extends TestCase {
 
   public void testTrailingHighSurrogate() {
     String test = "abc" + Character.MIN_HIGH_SURROGATE;
-    try {
-      escapeAsString(NOP_ESCAPER, test);
-      fail("Trailing high surrogate should cause exception");
-    } catch (IllegalArgumentException expected) {
-      // Pass
-    }
-    try {
-      escapeAsString(SIMPLE_ESCAPER, test);
-      fail("Trailing high surrogate should cause exception");
-    } catch (IllegalArgumentException expected) {
-      // Pass
-    }
+    assertThrows(IllegalArgumentException.class, () -> escapeAsString(NOP_ESCAPER, test));
+    assertThrows(IllegalArgumentException.class, () -> escapeAsString(SIMPLE_ESCAPER, test));
   }
 
   public void testNullInput() {
     UnicodeEscaper e = SIMPLE_ESCAPER;
-    try {
-      e.escape((String) null);
-      fail("Null string should cause exception");
-    } catch (NullPointerException expected) {
-      // Pass
-    }
+    assertThrows(NullPointerException.class, () -> e.escape((String) null));
   }
 
   public void testBadStrings() {
@@ -149,12 +137,7 @@ public class UnicodeEscaperTest extends TestCase {
       "abc" + Character.MAX_LOW_SURROGATE + "xyz",
     };
     for (String s : BAD_STRINGS) {
-      try {
-        escapeAsString(e, s);
-        fail("Isolated low surrogate should cause exception [" + s + "]");
-      } catch (IllegalArgumentException expected) {
-        // Pass
-      }
+      assertThrows(IllegalArgumentException.class, () -> escapeAsString(e, s));
     }
   }
 
@@ -163,7 +146,7 @@ public class UnicodeEscaperTest extends TestCase {
         new UnicodeEscaper() {
           // Canonical escaper method that only escapes lower case ASCII letters.
           @Override
-          protected char[] escape(int cp) {
+          protected char @Nullable [] escape(int cp) {
             return ('a' <= cp && cp <= 'z') ? new char[] {Character.toUpperCase((char) cp)} : null;
           }
           // Inefficient implementation that defines all letters as escapable.
@@ -178,12 +161,9 @@ public class UnicodeEscaperTest extends TestCase {
     assertEquals("\0HELLO \uD800\uDC00 WORLD!\n", e.escape("\0HeLLo \uD800\uDC00 WorlD!\n"));
   }
 
-  public void testCodePointAt_IndexOutOfBoundsException() {
-    try {
-      UnicodeEscaper.codePointAt("Testing...", 4, 2);
-      fail();
-    } catch (IndexOutOfBoundsException expected) {
-    }
+  public void testCodePointAt_indexOutOfBoundsException() {
+    assertThrows(
+        IndexOutOfBoundsException.class, () -> UnicodeEscaper.codePointAt("Testing...", 4, 2));
   }
 
   private static String escapeAsString(Escaper e, String s) {

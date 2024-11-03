@@ -150,7 +150,7 @@ public final class ElementOrderTest {
   // Combined node and edge order tests
 
   @Test
-  public void nodeOrderUnorderedandEdgesSorted() {
+  public void nodeOrderUnorderedAndEdgesSorted() {
     MutableNetwork<Integer, String> network =
         NetworkBuilder.directed()
             .nodeOrder(unordered())
@@ -239,6 +239,7 @@ public final class ElementOrderTest {
     }
   }
 
+  @SuppressWarnings("ComparableType")
   private static class ComparableSubClass extends NonComparableSuperClass
       implements Comparable<NonComparableSuperClass> {
 

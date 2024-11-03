@@ -63,10 +63,17 @@ public class ChecksumBenchmark {
     byte result = 0x01;
     for (int i = 0; i < reps; i++) {
       CRC32 checksum = new CRC32();
-      checksum.update(testBytes);
+      checksum.update(testBytes, 0, testBytes.length);
       result = (byte) (result ^ checksum.getValue());
     }
     return result;
+  }
+
+  // CRC32C
+
+  @Benchmark
+  byte crc32cHashFunction(int reps) {
+    return runHashFunction(reps, Hashing.crc32c());
   }
 
   // Adler32
@@ -81,8 +88,25 @@ public class ChecksumBenchmark {
     byte result = 0x01;
     for (int i = 0; i < reps; i++) {
       Adler32 checksum = new Adler32();
-      checksum.update(testBytes);
+      checksum.update(testBytes, 0, testBytes.length);
       result = (byte) (result ^ checksum.getValue());
+    }
+    return result;
+  }
+
+  // Fingerprint2011
+
+  @Benchmark
+  byte fingerprintHashFunction(int reps) {
+    return runHashFunction(reps, Hashing.fingerprint2011());
+  }
+
+  @Benchmark
+  byte fingerprintChecksum(int reps) throws Exception {
+    byte result = 0x01;
+    for (int i = 0; i < reps; i++) {
+      HashCode checksum = new Fingerprint2011().hashBytes(testBytes, 0, testBytes.length);
+      result = (byte) (result ^ checksum.asLong());
     }
     return result;
   }
@@ -94,6 +118,7 @@ public class ChecksumBenchmark {
     // Trick the JVM to prevent it from using the hash function non-polymorphically
     result ^= Hashing.crc32().hashInt(reps).asBytes()[0];
     result ^= Hashing.adler32().hashInt(reps).asBytes()[0];
+    result ^= Hashing.fingerprint2011().hashInt(reps).asBytes()[0];
     for (int i = 0; i < reps; i++) {
       result ^= hashFunction.hashBytes(testBytes).asBytes()[0];
     }

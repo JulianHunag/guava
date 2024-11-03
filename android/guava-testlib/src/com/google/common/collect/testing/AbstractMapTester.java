@@ -16,6 +16,9 @@
 
 package com.google.common.collect.testing;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
+import static com.google.common.collect.testing.Helpers.mapEntry;
+
 import com.google.common.annotations.GwtCompatible;
 import java.util.Collection;
 import java.util.Iterator;
@@ -23,6 +26,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Ignore;
 
 /**
@@ -37,7 +41,9 @@ import org.junit.Ignore;
  */
 @GwtCompatible
 @Ignore // Affects only Android test runner, which respects JUnit 4 annotations on JUnit 3 tests.
-public abstract class AbstractMapTester<K, V>
+@SuppressWarnings("JUnit4ClassUsedInJUnit3")
+@ElementTypesAreNonnullByDefault
+public abstract class AbstractMapTester<K extends @Nullable Object, V extends @Nullable Object>
     extends AbstractContainerTester<Map<K, V>, Entry<K, V>> {
   protected Map<K, V> getMap() {
     return container;
@@ -72,8 +78,8 @@ public abstract class AbstractMapTester<K, V>
   /** @return an array of the proper size with {@code null} as the key of the middle element. */
   protected Entry<K, V>[] createArrayWithNullKey() {
     Entry<K, V>[] array = createSamplesArray();
-    final int nullKeyLocation = getNullLocation();
-    final Entry<K, V> oldEntry = array[nullKeyLocation];
+    int nullKeyLocation = getNullLocation();
+    Entry<K, V> oldEntry = array[nullKeyLocation];
     array[nullKeyLocation] = entry(null, oldEntry.getValue());
     return array;
   }
@@ -97,8 +103,8 @@ public abstract class AbstractMapTester<K, V>
   /** @return an array of the proper size with {@code null} as the value of the middle element. */
   protected Entry<K, V>[] createArrayWithNullValue() {
     Entry<K, V>[] array = createSamplesArray();
-    final int nullValueLocation = getNullLocation();
-    final Entry<K, V> oldEntry = array[nullValueLocation];
+    int nullValueLocation = getNullLocation();
+    Entry<K, V> oldEntry = array[nullValueLocation];
     array[nullValueLocation] = entry(oldEntry.getKey(), null);
     return array;
   }
@@ -139,7 +145,6 @@ public abstract class AbstractMapTester<K, V>
     }
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   protected MinimalCollection<Entry<K, V>> createDisjointCollection() {
     return MinimalCollection.of(e3(), e4());
@@ -167,13 +172,13 @@ public abstract class AbstractMapTester<K, V>
     }
   }
 
-  private static boolean equal(Object a, Object b) {
+  private static boolean equal(@Nullable Object a, @Nullable Object b) {
     return a == b || (a != null && a.equals(b));
   }
 
   // This one-liner saves us from some ugly casts
   protected Entry<K, V> entry(K key, V value) {
-    return Helpers.mapEntry(key, value);
+    return mapEntry(key, value);
   }
 
   @Override
@@ -187,7 +192,7 @@ public abstract class AbstractMapTester<K, V>
   }
 
   protected final void expectReplacement(Entry<K, V> newEntry) {
-    List<Entry<K, V>> expected = Helpers.copyToList(getSampleElements());
+    List<Entry<K, V>> expected = copyToList(getSampleElements());
     replaceValue(expected, newEntry);
     expectContents(expected);
   }

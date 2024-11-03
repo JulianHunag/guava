@@ -16,7 +16,6 @@
 
 package com.google.common.io;
 
-import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -24,10 +23,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import junit.framework.TestCase;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Base test case class for I/O tests.
@@ -50,7 +51,7 @@ public abstract class IoTestCase extends TestCase {
   private File testDir;
   private File tempDir;
 
-  private final Set<File> filesToDelete = Sets.newHashSet();
+  private final Set<File> filesToDelete = new HashSet<>();
 
   @Override
   protected void tearDown() {
@@ -92,7 +93,7 @@ public abstract class IoTestCase extends TestCase {
   }
 
   /** Returns the file with the given name under the testdata directory. */
-  protected final File getTestFile(String name) throws IOException {
+  protected final @Nullable File getTestFile(String name) throws IOException {
     File file = new File(getTestDir(), name);
     if (!file.exists()) {
       URL resourceUrl = IoTestCase.class.getResource("testdata/" + name);

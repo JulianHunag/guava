@@ -17,7 +17,9 @@
 package com.google.common.collect.testing;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.Collection;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Ignore;
 
 /**
@@ -28,7 +30,9 @@ import org.junit.Ignore;
  */
 @GwtCompatible
 @Ignore // Affects only Android test runner, which respects JUnit 4 annotations on JUnit 3 tests.
-public abstract class AbstractCollectionTester<E>
+@SuppressWarnings("JUnit4ClassUsedInJUnit3")
+@ElementTypesAreNonnullByDefault
+public abstract class AbstractCollectionTester<E extends @Nullable Object>
     extends AbstractContainerTester<Collection<E>, E> {
 
   // TODO: replace this with an accessor.
@@ -41,6 +45,7 @@ public abstract class AbstractCollectionTester<E>
 
   // TODO: dispose of this once collection is encapsulated.
   @Override
+  @CanIgnoreReturnValue
   protected Collection<E> resetContainer(Collection<E> newContents) {
     collection = super.resetContainer(newContents);
     return collection;

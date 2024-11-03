@@ -16,8 +16,8 @@
 
 package com.google.common.io;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.j2objc.annotations.J2ObjCIncompatible;
 import java.nio.file.SecureDirectoryStream;
 
@@ -25,12 +25,13 @@ import java.nio.file.SecureDirectoryStream;
  * Options for use with recursive delete methods ({@link MoreFiles#deleteRecursively} and {@link
  * MoreFiles#deleteDirectoryContents}).
  *
- * @since 21.0
+ * @since 21.0 (but only since 33.4.0 in the Android flavor)
  * @author Colin Decker
  */
-@Beta
+@J2ktIncompatible
 @GwtIncompatible
 @J2ObjCIncompatible // java.nio.file
+@ElementTypesAreNonnullByDefault
 public enum RecursiveDeleteOption {
   /**
    * Specifies that the recursive delete should not throw an exception when it can't be guaranteed

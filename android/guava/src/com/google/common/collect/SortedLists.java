@@ -15,15 +15,16 @@
 package com.google.common.collect;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Lists.transform;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.base.Function;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.RandomAccess;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Static methods pertaining to sorted {@link List} instances.
@@ -35,29 +36,37 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * @author Louis Wasserman
  */
 @GwtCompatible
-@Beta final class SortedLists {
+@ElementTypesAreNonnullByDefault
+final class SortedLists {
   private SortedLists() {}
 
   /**
    * A specification for which index to return if the list contains at least one element that
    * compares as equal to the key.
-   */ enum KeyPresentBehavior {
+   */
+  enum KeyPresentBehavior {
     /**
      * Return the index of any list element that compares as equal to the key. No guarantees are
      * made as to which index is returned, if more than one element compares as equal to the key.
      */
     ANY_PRESENT {
       @Override
-      <E> int resultIndex(
-          Comparator<? super E> comparator, E key, List<? extends E> list, int foundIndex) {
+      <E extends @Nullable Object> int resultIndex(
+          Comparator<? super E> comparator,
+          @ParametricNullness E key,
+          List<? extends E> list,
+          int foundIndex) {
         return foundIndex;
       }
     },
     /** Return the index of the last list element that compares as equal to the key. */
     LAST_PRESENT {
       @Override
-      <E> int resultIndex(
-          Comparator<? super E> comparator, E key, List<? extends E> list, int foundIndex) {
+      <E extends @Nullable Object> int resultIndex(
+          Comparator<? super E> comparator,
+          @ParametricNullness E key,
+          List<? extends E> list,
+          int foundIndex) {
         // Of course, we have to use binary search to find the precise
         // breakpoint...
         int lower = foundIndex;
@@ -78,8 +87,11 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
     /** Return the index of the first list element that compares as equal to the key. */
     FIRST_PRESENT {
       @Override
-      <E> int resultIndex(
-          Comparator<? super E> comparator, E key, List<? extends E> list, int foundIndex) {
+      <E extends @Nullable Object> int resultIndex(
+          Comparator<? super E> comparator,
+          @ParametricNullness E key,
+          List<? extends E> list,
+          int foundIndex) {
         // Of course, we have to use binary search to find the precise
         // breakpoint...
         int lower = 0;
@@ -104,8 +116,11 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
      */
     FIRST_AFTER {
       @Override
-      public <E> int resultIndex(
-          Comparator<? super E> comparator, E key, List<? extends E> list, int foundIndex) {
+      public <E extends @Nullable Object> int resultIndex(
+          Comparator<? super E> comparator,
+          @ParametricNullness E key,
+          List<? extends E> list,
+          int foundIndex) {
         return LAST_PRESENT.resultIndex(comparator, key, list, foundIndex) + 1;
       }
     },
@@ -115,20 +130,27 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
      */
     LAST_BEFORE {
       @Override
-      public <E> int resultIndex(
-          Comparator<? super E> comparator, E key, List<? extends E> list, int foundIndex) {
+      public <E extends @Nullable Object> int resultIndex(
+          Comparator<? super E> comparator,
+          @ParametricNullness E key,
+          List<? extends E> list,
+          int foundIndex) {
         return FIRST_PRESENT.resultIndex(comparator, key, list, foundIndex) - 1;
       }
     };
 
-    abstract <E> int resultIndex(
-        Comparator<? super E> comparator, E key, List<? extends E> list, int foundIndex);
+    abstract <E extends @Nullable Object> int resultIndex(
+        Comparator<? super E> comparator,
+        @ParametricNullness E key,
+        List<? extends E> list,
+        int foundIndex);
   }
 
   /**
    * A specification for which index to return if the list contains no elements that compare as
    * equal to the key.
-   */ enum KeyAbsentBehavior {
+   */
+  enum KeyAbsentBehavior {
     /**
      * Return the index of the next lower element in the list, or {@code -1} if there is no such
      * element.
@@ -178,6 +200,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
    * <p>Equivalent to {@link #binarySearch(List, Function, Object, Comparator, KeyPresentBehavior,
    * KeyAbsentBehavior)} using {@link Ordering#natural}.
    */
+  @SuppressWarnings("rawtypes") // https://github.com/google/guava/issues/989
   public static <E extends Comparable> int binarySearch(
       List<? extends E> list,
       E e,
@@ -193,12 +216,14 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
    * <p>Equivalent to {@link #binarySearch(List, Function, Object, Comparator, KeyPresentBehavior,
    * KeyAbsentBehavior)} using {@link Ordering#natural}.
    */
-  public static <E, K extends Comparable> int binarySearch(
+  @SuppressWarnings("rawtypes") // https://github.com/google/guava/issues/989
+  public static <E extends @Nullable Object, K extends Comparable> int binarySearch(
       List<E> list,
       Function<? super E, K> keyFunction,
-      @NullableDecl K key,
+      K key,
       KeyPresentBehavior presentBehavior,
       KeyAbsentBehavior absentBehavior) {
+    checkNotNull(key);
     return binarySearch(
         list, keyFunction, key, Ordering.natural(), presentBehavior, absentBehavior);
   }
@@ -210,15 +235,15 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
    * KeyAbsentBehavior)} using {@link Lists#transform(List, Function) Lists.transform(list,
    * keyFunction)}.
    */
-  public static <E, K> int binarySearch(
+  public static <E extends @Nullable Object, K extends @Nullable Object> int binarySearch(
       List<E> list,
       Function<? super E, K> keyFunction,
-      @NullableDecl K key,
+      @ParametricNullness K key,
       Comparator<? super K> keyComparator,
       KeyPresentBehavior presentBehavior,
       KeyAbsentBehavior absentBehavior) {
     return binarySearch(
-        Lists.transform(list, keyFunction), key, keyComparator, presentBehavior, absentBehavior);
+        transform(list, keyFunction), key, keyComparator, presentBehavior, absentBehavior);
   }
 
   /**
@@ -244,9 +269,9 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
    * @return the index determined by the {@code KeyPresentBehavior}, if the key is in the list;
    *     otherwise the index determined by the {@code KeyAbsentBehavior}.
    */
-  public static <E> int binarySearch(
+  public static <E extends @Nullable Object> int binarySearch(
       List<? extends E> list,
-      @NullableDecl E key,
+      @ParametricNullness E key,
       Comparator<? super E> comparator,
       KeyPresentBehavior presentBehavior,
       KeyAbsentBehavior absentBehavior) {
@@ -255,7 +280,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
     checkNotNull(presentBehavior);
     checkNotNull(absentBehavior);
     if (!(list instanceof RandomAccess)) {
-      list = Lists.newArrayList(list);
+      list = new ArrayList<>(list);
     }
     // TODO(lowasser): benchmark when it's best to do a linear search
 

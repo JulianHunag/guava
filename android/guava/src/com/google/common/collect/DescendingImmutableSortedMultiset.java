@@ -15,7 +15,8 @@
 package com.google.common.collect;
 
 import com.google.common.annotations.GwtIncompatible;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import com.google.common.annotations.J2ktIncompatible;
+import javax.annotation.CheckForNull;
 
 /**
  * A descending wrapper around an {@code ImmutableSortedMultiset}
@@ -24,6 +25,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  */
 @SuppressWarnings("serial") // uses writeReplace, not default serialization
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 final class DescendingImmutableSortedMultiset<E> extends ImmutableSortedMultiset<E> {
   private final transient ImmutableSortedMultiset<E> forward;
 
@@ -32,16 +34,18 @@ final class DescendingImmutableSortedMultiset<E> extends ImmutableSortedMultiset
   }
 
   @Override
-  public int count(@NullableDecl Object element) {
+  public int count(@CheckForNull Object element) {
     return forward.count(element);
   }
 
   @Override
+  @CheckForNull
   public Entry<E> firstEntry() {
     return forward.lastEntry();
   }
 
   @Override
+  @CheckForNull
   public Entry<E> lastEntry() {
     return forward.firstEntry();
   }
@@ -79,5 +83,13 @@ final class DescendingImmutableSortedMultiset<E> extends ImmutableSortedMultiset
   @Override
   boolean isPartialView() {
     return forward.isPartialView();
+  }
+
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
+  @Override
+  @J2ktIncompatible // serialization
+  Object writeReplace() {
+    return super.writeReplace();
   }
 }

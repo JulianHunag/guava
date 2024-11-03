@@ -8,20 +8,30 @@
     <version>26.0-android</version>
   </parent>
   <artifactId>failureaccess</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.2</version>
   <packaging>bundle</packaging>
   <name>Guava InternalFutureFailureAccess and InternalFutures</name>
   <description>
     Contains
     com.google.common.util.concurrent.internal.InternalFutureFailureAccess and
     InternalFutures. Most users will never need to use this artifact. Its
-    classes is conceptually a part of Guava, but they're in this separate
+    classes are conceptually a part of Guava, but they're in this separate
     artifact so that Android libraries can use them without pulling in all of
     Guava (just as they can use ListenableFuture by depending on the
     listenablefuture artifact).
   </description>
   <build>
     <plugins>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Automatic-Module-Name>com.google.common.util.concurrent.internal</Automatic-Module-Name>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
       <plugin>
         <artifactId>maven-source-plugin</artifactId>
       </plugin>
@@ -33,7 +43,7 @@
         <extensions>true</extensions>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
-        <version>2.5.0</version>
+        <version>5.1.8</version>
         <executions>
           <execution>
             <id>bundle-manifest</id>
@@ -65,4 +75,26 @@
       </plugin>
     </plugins>
   </build>
+  <profiles>
+    <profile>
+        <id>sonatype-oss-release</id>
+        <build>
+          <plugins>
+            <plugin>
+              <artifactId>maven-gpg-plugin</artifactId>
+              <version>3.0.1</version>
+              <executions>
+                <execution>
+                  <id>sign-artifacts</id>
+                  <phase>verify</phase>
+                  <goals>
+                    <goal>sign</goal>
+                  </goals>
+                </execution>
+              </executions>
+            </plugin>
+          </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

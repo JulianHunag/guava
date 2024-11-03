@@ -17,6 +17,7 @@ package com.google.common.util.concurrent;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Queues;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
@@ -26,7 +27,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * A list of listeners for implementing a concurrency friendly observable object.
@@ -52,10 +52,12 @@ import java.util.logging.Logger;
  * the listeners can be delayed slightly so that locks can be dropped. Also, because {@link
  * #dispatch} is expected to be called concurrently, it is idempotent.
  */
+@J2ktIncompatible
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 final class ListenerCallQueue<L> {
   // TODO(cpovirk): consider using the logger associated with listener.getClass().
-  private static final Logger logger = Logger.getLogger(ListenerCallQueue.class.getName());
+  private static final LazyLogger logger = new LazyLogger(ListenerCallQueue.class);
 
   // TODO(chrisn): promote AppendOnlyCollection for use here.
   private final List<PerListenerQueue<L>> listeners =
@@ -123,7 +125,7 @@ final class ListenerCallQueue<L> {
 
   /**
    * A special purpose queue/executor that dispatches listener events serially on a configured
-   * executor. Each event event can be added and dispatched as separate phases.
+   * executor. Each event can be added and dispatched as separate phases.
    *
    * <p>This class is very similar to {@link SequentialExecutor} with the exception that events can
    * be added without necessarily executing immediately.
@@ -146,7 +148,7 @@ final class ListenerCallQueue<L> {
       this.executor = checkNotNull(executor);
     }
 
-    /** Enqueues a event to be run. */
+    /** Enqueues an event to be run. */
     synchronized void add(ListenerCallQueue.Event<L> event, Object label) {
       waitQueue.add(event);
       labelQueue.add(label);
@@ -156,6 +158,7 @@ final class ListenerCallQueue<L> {
      * Dispatches all listeners {@linkplain #enqueue enqueued} prior to this call, serially and in
      * order.
      */
+    @SuppressWarnings("CatchingUnchecked") // sneaky checked exception
     void dispatch() {
       boolean scheduleEventRunner = false;
       synchronized (this) {
@@ -167,22 +170,25 @@ final class ListenerCallQueue<L> {
       if (scheduleEventRunner) {
         try {
           executor.execute(this);
-        } catch (RuntimeException e) {
+        } catch (Exception e) { // sneaky checked exception
           // reset state in case of an error so that later dispatch calls will actually do something
           synchronized (this) {
             isThreadScheduled = false;
           }
           // Log it and keep going.
-          logger.log(
-              Level.SEVERE,
-              "Exception while running callbacks for " + listener + " on " + executor,
-              e);
+          logger
+              .get()
+              .log(
+                  Level.SEVERE,
+                  "Exception while running callbacks for " + listener + " on " + executor,
+                  e);
           throw e;
         }
       }
     }
 
     @Override
+    @SuppressWarnings("CatchingUnchecked") // sneaky checked exception
     public void run() {
       boolean stillRunning = true;
       try {
@@ -203,12 +209,14 @@ final class ListenerCallQueue<L> {
           // Always run while _not_ holding the lock, to avoid deadlocks.
           try {
             nextToRun.call(listener);
-          } catch (RuntimeException e) {
+          } catch (Exception e) { // sneaky checked exception
             // Log it and keep going.
-            logger.log(
-                Level.SEVERE,
-                "Exception while executing callback: " + listener + " " + nextLabel,
-                e);
+            logger
+                .get()
+                .log(
+                    Level.SEVERE,
+                    "Exception while executing callback: " + listener + " " + nextLabel,
+                    e);
           }
         }
       } finally {

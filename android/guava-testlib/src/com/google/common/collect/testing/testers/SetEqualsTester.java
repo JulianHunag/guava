@@ -16,10 +16,10 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
 import static com.google.common.collect.testing.features.CollectionFeature.ALLOWS_NULL_VALUES;
 
 import com.google.common.annotations.GwtCompatible;
-import com.google.common.collect.testing.Helpers;
 import com.google.common.collect.testing.MinimalSet;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
@@ -34,6 +34,7 @@ import org.junit.Ignore;
  */
 @GwtCompatible
 @Ignore // Affects only Android test runner, which respects JUnit 4 annotations on JUnit 3 tests.
+@SuppressWarnings("JUnit4ClassUsedInJUnit3")
 public class SetEqualsTester<E> extends AbstractSetTester<E> {
   public void testEquals_otherSetWithSameElements() {
     assertTrue(
@@ -91,6 +92,6 @@ public class SetEqualsTester<E> extends AbstractSetTester<E> {
   }
 
   public void testEquals_list() {
-    assertFalse("A List should never equal a Set.", getSet().equals(Helpers.copyToList(getSet())));
+    assertFalse("A List should never equal a Set.", getSet().equals(copyToList(getSet())));
   }
 }

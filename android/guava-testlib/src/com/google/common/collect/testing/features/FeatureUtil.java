@@ -16,14 +16,17 @@
 
 package com.google.common.collect.testing.features;
 
+import static com.google.common.collect.testing.Helpers.copyToSet;
+import static java.util.Collections.disjoint;
+import static java.util.Collections.unmodifiableList;
+
 import com.google.common.annotations.GwtIncompatible;
-import com.google.common.collect.testing.Helpers;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -38,9 +41,9 @@ import java.util.Set;
  * @author George van den Driessche
  */
 @GwtIncompatible
-public class FeatureUtil {
+public final class FeatureUtil {
   /** A cache of annotated objects (typically a Class or Method) to its set of annotations. */
-  private static Map<AnnotatedElement, List<Annotation>> annotationCache = new HashMap<>();
+  private static final Map<AnnotatedElement, List<Annotation>> annotationCache = new HashMap<>();
 
   private static final Map<Class<?>, TesterRequirements> classTesterRequirementsCache =
       new HashMap<>();
@@ -55,6 +58,7 @@ public class FeatureUtil {
    * @param features the set of features to expand
    * @return the same set of features, expanded with all implied features
    */
+  @CanIgnoreReturnValue
   public static Set<Feature<?>> addImpliedFeatures(Set<Feature<?>> features) {
     Queue<Feature<?>> queue = new ArrayDeque<>(features);
     while (!queue.isEmpty()) {
@@ -139,12 +143,12 @@ public class FeatureUtil {
    */
   static TesterRequirements buildTesterRequirements(Class<?> testerClass)
       throws ConflictingRequirementsException {
-    final TesterRequirements declaredRequirements = buildDeclaredTesterRequirements(testerClass);
+    TesterRequirements declaredRequirements = buildDeclaredTesterRequirements(testerClass);
     Class<?> baseClass = testerClass.getSuperclass();
     if (baseClass == null) {
       return declaredRequirements;
     } else {
-      final TesterRequirements clonedBaseRequirements =
+      TesterRequirements clonedBaseRequirements =
           new TesterRequirements(getTesterRequirements(baseClass));
       return incorporateRequirements(clonedBaseRequirements, declaredRequirements, testerClass);
     }
@@ -176,19 +180,17 @@ public class FeatureUtil {
   private static TesterRequirements buildTesterRequirements(Annotation testerAnnotation)
       throws ConflictingRequirementsException {
     Class<? extends Annotation> annotationClass = testerAnnotation.annotationType();
-    final Feature<?>[] presentFeatures;
-    final Feature<?>[] absentFeatures;
+    Feature<?>[] presentFeatures;
+    Feature<?>[] absentFeatures;
     try {
-      presentFeatures = (Feature[]) annotationClass.getMethod("value").invoke(testerAnnotation);
-      absentFeatures = (Feature[]) annotationClass.getMethod("absent").invoke(testerAnnotation);
+      presentFeatures = (Feature<?>[]) annotationClass.getMethod("value").invoke(testerAnnotation);
+      absentFeatures = (Feature<?>[]) annotationClass.getMethod("absent").invoke(testerAnnotation);
     } catch (Exception e) {
       throw new IllegalArgumentException("Error extracting features from tester annotation.", e);
     }
-    Set<Feature<?>> allPresentFeatures =
-        addImpliedFeatures(Helpers.<Feature<?>>copyToSet(presentFeatures));
-    Set<Feature<?>> allAbsentFeatures =
-        addImpliedFeatures(Helpers.<Feature<?>>copyToSet(absentFeatures));
-    if (!Collections.disjoint(allPresentFeatures, allAbsentFeatures)) {
+    Set<Feature<?>> allPresentFeatures = addImpliedFeatures(copyToSet(presentFeatures));
+    Set<Feature<?>> allAbsentFeatures = copyToSet(absentFeatures);
+    if (!disjoint(allPresentFeatures, allAbsentFeatures)) {
       throw new ConflictingRequirementsException(
           "Annotation explicitly or "
               + "implicitly requires one or more features to be both present "
@@ -237,7 +239,7 @@ public class FeatureUtil {
             annotations.add(a);
           }
         }
-        annotations = Collections.unmodifiableList(annotations);
+        annotations = unmodifiableList(annotations);
         annotationCache.put(classOrMethod, annotations);
       }
       return annotations;
@@ -254,6 +256,7 @@ public class FeatureUtil {
    * @throws ConflictingRequirementsException if the additional requirements are inconsistent with
    *     the existing requirements
    */
+  @CanIgnoreReturnValue
   private static TesterRequirements incorporateRequirements(
       TesterRequirements requirements, TesterRequirements moreRequirements, Object source)
       throws ConflictingRequirementsException {
@@ -276,7 +279,7 @@ public class FeatureUtil {
       Set<Feature<?>> newFeatures,
       Object source)
       throws ConflictingRequirementsException {
-    if (!Collections.disjoint(newFeatures, earlierFeatures)) {
+    if (!disjoint(newFeatures, earlierFeatures)) {
       throw new ConflictingRequirementsException(
           String.format(
               Locale.ROOT,
@@ -289,10 +292,17 @@ public class FeatureUtil {
     }
   }
 
-  /** Construct a new {@link java.util.Set} that is the intersection of the given sets. */
+  /**
+   * Construct a new {@link java.util.Set} that is the intersection of the given sets.
+   *
+   * @deprecated Use {@link com.google.common.collect.Sets#intersection(Set, Set)} instead.
+   */
+  @Deprecated
   public static <T> Set<T> intersection(Set<? extends T> set1, Set<? extends T> set2) {
-    Set<T> result = Helpers.<T>copyToSet(set1);
+    Set<T> result = copyToSet(set1);
     result.retainAll(set2);
     return result;
   }
+
+  private FeatureUtil() {}
 }

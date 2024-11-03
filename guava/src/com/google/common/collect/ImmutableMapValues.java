@@ -20,12 +20,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
-import com.google.j2objc.annotations.Weak;
+import com.google.common.annotations.J2ktIncompatible;
 import java.io.Serializable;
 import java.util.Map.Entry;
 import java.util.Spliterator;
 import java.util.function.Consumer;
-import org.checkerframework.checker.nullness.qual.Nullable;
+import javax.annotation.CheckForNull;
 
 /**
  * {@code values()} implementation for {@link ImmutableMap}.
@@ -34,8 +34,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * @author Kevin Bourrillion
  */
 @GwtCompatible(emulated = true)
+@ElementTypesAreNonnullByDefault
 final class ImmutableMapValues<K, V> extends ImmutableCollection<V> {
-  @Weak private final ImmutableMap<K, V> map;
+  private final ImmutableMap<K, V> map;
 
   ImmutableMapValues(ImmutableMap<K, V> map) {
     this.map = map;
@@ -69,7 +70,7 @@ final class ImmutableMapValues<K, V> extends ImmutableCollection<V> {
   }
 
   @Override
-  public boolean contains(@Nullable Object object) {
+  public boolean contains(@CheckForNull Object object) {
     return object != null && Iterators.contains(iterator(), object);
   }
 
@@ -91,6 +92,15 @@ final class ImmutableMapValues<K, V> extends ImmutableCollection<V> {
       ImmutableCollection<V> delegateCollection() {
         return ImmutableMapValues.this;
       }
+
+      // redeclare to help optimizers with b/310253115
+      @SuppressWarnings("RedundantOverride")
+      @Override
+      @J2ktIncompatible // serialization
+      @GwtIncompatible // serialization
+      Object writeReplace() {
+        return super.writeReplace();
+      }
     };
   }
 
@@ -101,13 +111,19 @@ final class ImmutableMapValues<K, V> extends ImmutableCollection<V> {
     map.forEach((k, v) -> action.accept(v));
   }
 
-  @GwtIncompatible // serialization
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
   @Override
+  @J2ktIncompatible // serialization
+  @GwtIncompatible // serialization
   Object writeReplace() {
-    return new SerializedForm<V>(map);
+    return super.writeReplace();
   }
 
+  // No longer used for new writes, but kept so that old data can still be read.
   @GwtIncompatible // serialization
+  @J2ktIncompatible
+  @SuppressWarnings("unused")
   private static class SerializedForm<V> implements Serializable {
     final ImmutableMap<?, V> map;
 

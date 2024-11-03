@@ -14,7 +14,6 @@
 
 package com.google.common.html;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
@@ -26,17 +25,18 @@ import com.google.common.escape.Escapers;
  * One Google-authored templating system available for external use is <a
  * href="https://developers.google.com/closure/templates/">Closure Templates</a>.
  *
- * <p>HTML escaping is particularly tricky: For example, <a href="http://goo.gl/5TgZb">some
- * elements' text contents must not be HTML escaped</a>. As a result, it is impossible to escape an
- * HTML document correctly without domain-specific knowledge beyond what {@code HtmlEscapers}
- * provides. We strongly encourage the use of HTML templating systems.
+ * <p>HTML escaping is particularly tricky: For example, <a
+ * href="https://www.w3.org/TR/html4/types.html#h-6.2">some elements' text contents must not be HTML
+ * escaped</a>. As a result, it is impossible to escape an HTML document correctly without
+ * domain-specific knowledge beyond what {@code HtmlEscapers} provides. We strongly encourage the
+ * use of HTML templating systems.
  *
  * @author Sven Mawson
  * @author David Beaumont
  * @since 15.0
  */
-@Beta
 @GwtCompatible
+@ElementTypesAreNonnullByDefault
 public final class HtmlEscapers {
   /**
    * Returns an {@link Escaper} instance that escapes HTML metacharacters as specified by <a

@@ -16,10 +16,15 @@
 
 package com.google.common.collect;
 
+import static java.lang.System.arraycopy;
+
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import javax.annotation.CheckForNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -29,28 +34,30 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 @GwtCompatible(serializable = true, emulated = true)
 @SuppressWarnings("serial") // uses writeReplace(), not default serialization
-final class RegularImmutableSet<E> extends ImmutableSet<E> {
+@ElementTypesAreNonnullByDefault
+final class RegularImmutableSet<E> extends ImmutableSet.CachingAsList<E> {
+  private static final Object[] EMPTY_ARRAY = new Object[0];
   static final RegularImmutableSet<Object> EMPTY =
-      new RegularImmutableSet<>(new Object[0], 0, null, 0);
+      new RegularImmutableSet<>(EMPTY_ARRAY, 0, EMPTY_ARRAY, 0);
 
   private final transient Object[] elements;
-  // the same elements in hashed positions (plus nulls)
-  @VisibleForTesting final transient Object[] table;
+  private final transient int hashCode;
+  // the same values as `elements` in hashed positions (plus nulls)
+  @VisibleForTesting final transient @Nullable Object[] table;
   // 'and' with an int to get a valid table index.
   private final transient int mask;
-  private final transient int hashCode;
 
-  RegularImmutableSet(Object[] elements, int hashCode, Object[] table, int mask) {
+  RegularImmutableSet(Object[] elements, int hashCode, @Nullable Object[] table, int mask) {
     this.elements = elements;
+    this.hashCode = hashCode;
     this.table = table;
     this.mask = mask;
-    this.hashCode = hashCode;
   }
 
   @Override
-  public boolean contains(@Nullable Object target) {
-    Object[] table = this.table;
-    if (target == null || table == null) {
+  public boolean contains(@CheckForNull Object target) {
+    @Nullable Object[] table = this.table;
+    if (target == null || table.length == 0) {
       return false;
     }
     for (int i = Hashing.smearedHash(target); ; i++) {
@@ -69,6 +76,9 @@ final class RegularImmutableSet<E> extends ImmutableSet<E> {
     return elements.length;
   }
 
+  // We're careful to put only E instances into the array in the mainline.
+  // (In the backport, we don't need this suppression, but we keep it to minimize diffs.)
+  @SuppressWarnings("unchecked")
   @Override
   public UnmodifiableIterator<E> iterator() {
     return (UnmodifiableIterator<E>) Iterators.forArray(elements);
@@ -95,14 +105,16 @@ final class RegularImmutableSet<E> extends ImmutableSet<E> {
   }
 
   @Override
-  int copyIntoArray(Object[] dst, int offset) {
-    System.arraycopy(elements, 0, dst, offset, elements.length);
+  int copyIntoArray(@Nullable Object[] dst, int offset) {
+    arraycopy(elements, 0, dst, offset, elements.length);
     return offset + elements.length;
   }
 
   @Override
   ImmutableList<E> createAsList() {
-    return (table == null) ? ImmutableList.<E>of() : new RegularImmutableAsList<E>(this, elements);
+    return (table.length == 0)
+        ? ImmutableList.<E>of()
+        : new RegularImmutableAsList<E>(this, elements);
   }
 
   @Override
@@ -118,5 +130,14 @@ final class RegularImmutableSet<E> extends ImmutableSet<E> {
   @Override
   boolean isHashCodeFast() {
     return true;
+  }
+
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
+  @Override
+  @J2ktIncompatible // serialization
+  @GwtIncompatible // serialization
+  Object writeReplace() {
+    return super.writeReplace();
   }
 }

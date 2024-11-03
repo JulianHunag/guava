@@ -15,19 +15,20 @@
 package com.google.common.io;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Streams.stream;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Ascii;
 import com.google.common.base.Optional;
 import com.google.common.base.Splitter;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Streams;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.google.errorprone.annotations.MustBeClosed;
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -39,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import javax.annotation.CheckForNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -65,10 +67,24 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * <p>Any {@link ByteSource} containing text encoded with a specific {@linkplain Charset character
  * encoding} may be viewed as a {@code CharSource} using {@link ByteSource#asCharSource(Charset)}.
  *
+ * <p><b>Note:</b> In general, {@code CharSource} is intended to be used for "file-like" sources
+ * that provide readers that are:
+ *
+ * <ul>
+ *   <li><b>Finite:</b> Many operations, such as {@link #length()} and {@link #read()}, will either
+ *       block indefinitely or fail if the source creates an infinite reader.
+ *   <li><b>Non-destructive:</b> A <i>destructive</i> reader will consume or otherwise alter the
+ *       source as they are read from it. A source that provides such readers will not be reusable,
+ *       and operations that read from the stream (including {@link #length()}, in some
+ *       implementations) will prevent further operations from completing as expected.
+ * </ul>
+ *
  * @since 14.0
  * @author Colin Decker
  */
+@J2ktIncompatible
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 public abstract class CharSource {
 
   /** Constructor for use by subclasses. */
@@ -85,7 +101,6 @@ public abstract class CharSource {
    *
    * @since 20.0
    */
-  @Beta
   public ByteSource asByteSource(Charset charset) {
     return new AsByteSource(charset);
   }
@@ -139,22 +154,26 @@ public abstract class CharSource {
    * }</pre>
    *
    * @throws IOException if an I/O error occurs while opening the stream
-   * @since 22.0
+   * @since 22.0 (but only since 33.4.0 in the Android flavor)
    */
-  @Beta
   @MustBeClosed
   public Stream<String> lines() throws IOException {
     BufferedReader reader = openBufferedStream();
-    return reader
-        .lines()
-        .onClose(
-            () -> {
-              try {
-                reader.close();
-              } catch (IOException e) {
-                throw new UncheckedIOException(e);
-              }
-            });
+    return reader.lines().onClose(() -> closeUnchecked(reader));
+  }
+
+  @SuppressWarnings("Java7ApiChecker")
+  @IgnoreJRERequirement // helper for lines()
+  /*
+   * If we make these calls inline inside the lambda inside lines(), we get an Animal Sniffer error,
+   * despite the @IgnoreJRERequirement annotation there. For details, see ImmutableSortedMultiset.
+   */
+  private static void closeUnchecked(Closeable closeable) {
+    try {
+      closeable.close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   /**
@@ -171,7 +190,6 @@ public abstract class CharSource {
    *
    * @since 19.0
    */
-  @Beta
   public Optional<Long> lengthIfKnown() {
     return Optional.absent();
   }
@@ -195,7 +213,6 @@ public abstract class CharSource {
    * @throws IOException if an I/O error occurs while reading the length of this source
    * @since 19.0
    */
-  @Beta
   public long length() throws IOException {
     Optional<Long> lengthIfKnown = lengthIfKnown();
     if (lengthIfKnown.isPresent()) {
@@ -295,7 +312,8 @@ public abstract class CharSource {
    *
    * @throws IOException if an I/O error occurs while reading from this source
    */
-  public @Nullable String readFirstLine() throws IOException {
+  @CheckForNull
+  public String readFirstLine() throws IOException {
     Closer closer = Closer.create();
     try {
       BufferedReader reader = closer.register(openBufferedStream());
@@ -349,9 +367,9 @@ public abstract class CharSource {
    *     processor} throws an {@code IOException}
    * @since 16.0
    */
-  @Beta
   @CanIgnoreReturnValue // some processors won't return a useful result
-  public <T> T readLines(LineProcessor<T> processor) throws IOException {
+  @ParametricNullness
+  public <T extends @Nullable Object> T readLines(LineProcessor<T> processor) throws IOException {
     checkNotNull(processor);
 
     Closer closer = Closer.create();
@@ -376,9 +394,8 @@ public abstract class CharSource {
    *
    * @throws IOException if an I/O error occurs while reading from this source or if {@code action}
    *     throws an {@code UncheckedIOException}
-   * @since 22.0
+   * @since 22.0 (but only since 33.4.0 in the Android flavor)
    */
-  @Beta
   public void forEachLine(Consumer<? super String> action) throws IOException {
     try (Stream<String> lines = lines()) {
       // The lines should be ordered regardless in most cases, but use forEachOrdered to be sure
@@ -563,6 +580,7 @@ public abstract class CharSource {
         Iterator<String> lines = LINE_SPLITTER.split(seq).iterator();
 
         @Override
+        @CheckForNull
         protected String computeNext() {
           if (lines.hasNext()) {
             String next = lines.next();
@@ -578,10 +596,11 @@ public abstract class CharSource {
 
     @Override
     public Stream<String> lines() {
-      return Streams.stream(linesIterator());
+      return stream(linesIterator());
     }
 
     @Override
+    @CheckForNull
     public String readFirstLine() {
       Iterator<String> lines = linesIterator();
       return lines.hasNext() ? lines.next() : null;
@@ -593,7 +612,8 @@ public abstract class CharSource {
     }
 
     @Override
-    public <T> T readLines(LineProcessor<T> processor) throws IOException {
+    @ParametricNullness
+    public <T extends @Nullable Object> T readLines(LineProcessor<T> processor) throws IOException {
       Iterator<String> lines = linesIterator();
       while (lines.hasNext()) {
         if (!processor.processLine(lines.next())) {

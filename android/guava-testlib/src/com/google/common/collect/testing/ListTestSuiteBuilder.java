@@ -16,6 +16,7 @@
 
 package com.google.common.collect.testing;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
 import static com.google.common.collect.testing.features.CollectionFeature.KNOWN_ORDER;
 import static com.google.common.collect.testing.features.CollectionFeature.SERIALIZABLE;
 import static com.google.common.collect.testing.features.CollectionFeature.SERIALIZABLE_INCLUDING_VIEWS;
@@ -63,9 +64,10 @@ public final class ListTestSuiteBuilder<E>
     return new ListTestSuiteBuilder<E>().usingGenerator(generator);
   }
 
+  @SuppressWarnings("rawtypes") // class literals
   @Override
   protected List<Class<? extends AbstractTester>> getTesters() {
-    List<Class<? extends AbstractTester>> testers = Helpers.copyToList(super.getTesters());
+    List<Class<? extends AbstractTester>> testers = copyToList(super.getTesters());
 
     testers.add(CollectionSerializationEqualTester.class);
     testers.add(ListAddAllAtIndexTester.class);
@@ -112,6 +114,8 @@ public final class ListTestSuiteBuilder<E>
               .named(getName() + " reserialized")
               .withFeatures(computeReserializedCollectionFeatures(parentBuilder.getFeatures()))
               .suppressing(parentBuilder.getSuppressedTests())
+              .withSetUp(parentBuilder.getSetUp())
+              .withTearDown(parentBuilder.getTearDown())
               .createTestSuite());
     }
     return derivedSuites;
@@ -146,8 +150,7 @@ public final class ListTestSuiteBuilder<E>
   }
 
   private static Set<Feature<?>> computeReserializedCollectionFeatures(Set<Feature<?>> features) {
-    Set<Feature<?>> derivedFeatures = new HashSet<>();
-    derivedFeatures.addAll(features);
+    Set<Feature<?>> derivedFeatures = new HashSet<>(features);
     derivedFeatures.remove(SERIALIZABLE);
     derivedFeatures.remove(SERIALIZABLE_INCLUDING_VIEWS);
     return derivedFeatures;

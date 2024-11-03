@@ -17,6 +17,7 @@
 package com.google.common.util.concurrent;
 
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.google.caliper.AfterExperiment;
 import com.google.caliper.BeforeExperiment;
@@ -28,17 +29,21 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AbstractFutureBenchmarks.OldAbstractFuture;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
+import java.lang.reflect.Field;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import sun.misc.Unsafe;
 
 /** Benchmarks for {@link ExecutionList}. */
 @VmOptions({"-Xms8g", "-Xmx8g"})
@@ -246,13 +251,13 @@ public class ExecutionListBenchmark {
             NUM_THREADS,
             NUM_THREADS,
             Long.MAX_VALUE,
-            TimeUnit.SECONDS,
+            SECONDS,
             new ArrayBlockingQueue<Runnable>(1000));
     executorService.prestartAllCoreThreads();
     final AtomicInteger integer = new AtomicInteger();
     // Execute a bunch of tasks to ensure that our threads are allocated and hot
     for (int i = 0; i < NUM_THREADS * 10; i++) {
-      @SuppressWarnings("unused") // go/futurereturn-lsc
+      @SuppressWarnings("unused") // https://errorprone.info/bugpattern/FutureReturnValueIgnored
       Future<?> possiblyIgnoredError =
           executorService.submit(
               new Runnable() {
@@ -334,10 +339,10 @@ public class ExecutionListBenchmark {
       list = impl.newExecutionList();
       listenerLatch = new CountDownLatch(numListeners * NUM_THREADS);
       for (int j = 0; j < NUM_THREADS; j++) {
-        @SuppressWarnings("unused") // go/futurereturn-lsc
+        @SuppressWarnings("unused") // https://errorprone.info/bugpattern/FutureReturnValueIgnored
         Future<?> possiblyIgnoredError = executorService.submit(addTask);
       }
-      @SuppressWarnings("unused") // go/futurereturn-lsc
+      @SuppressWarnings("unused") // https://errorprone.info/bugpattern/FutureReturnValueIgnored
       Future<?> possiblyIgnoredError = executorService.submit(executeTask);
       returnValue += (int) listenerLatch.getCount();
       listenerLatch.await();
@@ -360,10 +365,10 @@ public class ExecutionListBenchmark {
     for (int i = 0; i < reps; i++) {
       list = impl.newExecutionList();
       listenerLatch = new CountDownLatch(numListeners * NUM_THREADS);
-      @SuppressWarnings("unused") // go/futurereturn-lsc
+      @SuppressWarnings("unused") // https://errorprone.info/bugpattern/FutureReturnValueIgnored
       Future<?> possiblyIgnoredError = executorService.submit(executeTask);
       for (int j = 0; j < NUM_THREADS; j++) {
-        @SuppressWarnings("unused") // go/futurereturn-lsc
+        @SuppressWarnings("unused") // https://errorprone.info/bugpattern/FutureReturnValueIgnored
         Future<?> possiblyIgnoredError1 = executorService.submit(addTask);
       }
       returnValue += (int) listenerLatch.getCount();
@@ -440,7 +445,7 @@ public class ExecutionListBenchmark {
     static final Logger log = Logger.getLogger(NewExecutionListWithoutReverse.class.getName());
 
     @GuardedBy("this")
-    private RunnableExecutorPair runnables;
+    private @Nullable RunnableExecutorPair runnables;
 
     @GuardedBy("this")
     private boolean executed;
@@ -504,10 +509,10 @@ public class ExecutionListBenchmark {
     static final Logger log = Logger.getLogger(NewExecutionListQueue.class.getName());
 
     @GuardedBy("this")
-    private RunnableExecutorPair head;
+    private @Nullable RunnableExecutorPair head;
 
     @GuardedBy("this")
-    private RunnableExecutorPair tail;
+    private @Nullable RunnableExecutorPair tail;
 
     @GuardedBy("this")
     private boolean executed;
@@ -573,10 +578,11 @@ public class ExecutionListBenchmark {
   }
 
   // A version of the list that uses compare and swap to manage the stack without locks.
+  @SuppressWarnings({"SunApi", "removal"}) // b/345822163
   private static final class ExecutionListCAS {
     static final Logger log = Logger.getLogger(ExecutionListCAS.class.getName());
 
-    private static final sun.misc.Unsafe UNSAFE;
+    private static final Unsafe UNSAFE;
     private static final long HEAD_OFFSET;
 
     /**
@@ -595,18 +601,18 @@ public class ExecutionListBenchmark {
     }
 
     /** TODO(lukes): This was copied verbatim from Striped64.java... standardize this? */
-    private static sun.misc.Unsafe getUnsafe() {
+    private static Unsafe getUnsafe() {
       try {
-        return sun.misc.Unsafe.getUnsafe();
+        return Unsafe.getUnsafe();
       } catch (SecurityException tryReflectionInstead) {
       }
       try {
-        return java.security.AccessController.doPrivileged(
-            new java.security.PrivilegedExceptionAction<sun.misc.Unsafe>() {
+        return AccessController.doPrivileged(
+            new PrivilegedExceptionAction<Unsafe>() {
               @Override
-              public sun.misc.Unsafe run() throws Exception {
-                Class<sun.misc.Unsafe> k = sun.misc.Unsafe.class;
-                for (java.lang.reflect.Field f : k.getDeclaredFields()) {
+              public Unsafe run() throws Exception {
+                Class<Unsafe> k = Unsafe.class;
+                for (Field f : k.getDeclaredFields()) {
                   f.setAccessible(true);
                   Object x = f.get(null);
                   if (k.isInstance(x)) return k.cast(x);
@@ -614,7 +620,7 @@ public class ExecutionListBenchmark {
                 throw new NoSuchFieldError("the Unsafe");
               }
             });
-      } catch (java.security.PrivilegedActionException e) {
+      } catch (PrivilegedActionException e) {
         throw new RuntimeException("Could not initialize intrinsics", e.getCause());
       }
     }
@@ -671,7 +677,7 @@ public class ExecutionListBenchmark {
       // Volatile because this is written on one thread and read on another with no synchronization.
       @Nullable volatile RunnableExecutorPair next;
 
-      RunnableExecutorPair(Runnable runnable, Executor executor) {
+      RunnableExecutorPair(@Nullable Runnable runnable, @Nullable Executor executor) {
         this.runnable = runnable;
         this.executor = executor;
       }

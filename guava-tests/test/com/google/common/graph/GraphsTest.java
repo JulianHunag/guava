@@ -22,7 +22,7 @@ import static com.google.common.graph.Graphs.reachableNodes;
 import static com.google.common.graph.Graphs.transitiveClosure;
 import static com.google.common.graph.Graphs.transpose;
 import static com.google.common.truth.Truth.assertThat;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.collect.ImmutableSet;
 import java.util.Set;
@@ -56,10 +56,6 @@ public class GraphsTest {
   // in one class (may be a utility class for error messages).
   private static final String ERROR_PARALLEL_EDGE = "connected by a different edge";
   private static final String ERROR_NEGATIVE_COUNT = "is non-negative";
-  private static final String ERROR_ADDED_PARALLEL_EDGE =
-      "Should not be allowed to add a parallel edge.";
-  private static final String ERROR_ADDED_SELF_LOOP =
-      "Should not be allowed to add a self-loop edge.";
   static final String ERROR_SELF_LOOP = "self-loops are not allowed";
 
   @Test
@@ -206,7 +202,7 @@ public class GraphsTest {
     MutableGraph<Integer> undirectedGraph = GraphBuilder.undirected().build();
     undirectedGraph.putEdge(N1, N2);
 
-    assertThat(transpose(undirectedGraph)).isSameAs(undirectedGraph);
+    assertThat(transpose(undirectedGraph)).isSameInstanceAs(undirectedGraph);
   }
 
   @Test
@@ -227,12 +223,12 @@ public class GraphsTest {
 
     Graph<Integer> transpose = transpose(directedGraph);
     assertThat(transpose).isEqualTo(expectedTranspose);
-    assertThat(transpose(transpose)).isSameAs(directedGraph);
+    assertThat(transpose(transpose)).isSameInstanceAs(directedGraph);
     AbstractGraphTest.validateGraph(transpose);
 
     for (Integer node : directedGraph.nodes()) {
-      assertThat(directedGraph.inDegree(node)).isSameAs(transpose.outDegree(node));
-      assertThat(directedGraph.outDegree(node)).isSameAs(transpose.inDegree(node));
+      assertThat(directedGraph.inDegree(node)).isSameInstanceAs(transpose.outDegree(node));
+      assertThat(directedGraph.outDegree(node)).isSameInstanceAs(transpose.inDegree(node));
     }
 
     assertThat(transpose.successors(N1)).doesNotContain(N2);
@@ -247,7 +243,7 @@ public class GraphsTest {
     MutableValueGraph<Integer, String> undirectedGraph = ValueGraphBuilder.undirected().build();
     undirectedGraph.putEdgeValue(N1, N2, E12);
 
-    assertThat(transpose(undirectedGraph)).isSameAs(undirectedGraph);
+    assertThat(transpose(undirectedGraph)).isSameInstanceAs(undirectedGraph);
   }
 
   @Test
@@ -270,13 +266,13 @@ public class GraphsTest {
 
     ValueGraph<Integer, String> transpose = transpose(directedGraph);
     assertThat(transpose).isEqualTo(expectedTranspose);
-    assertThat(transpose(transpose)).isSameAs(directedGraph);
+    assertThat(transpose(transpose)).isSameInstanceAs(directedGraph);
     AbstractGraphTest.validateGraph(transpose.asGraph());
 
     assertThat(transpose.edgeValueOrDefault(N1, N2, null)).isNull();
     for (Integer node : directedGraph.nodes()) {
-      assertThat(directedGraph.inDegree(node)).isSameAs(transpose.outDegree(node));
-      assertThat(directedGraph.outDegree(node)).isSameAs(transpose.inDegree(node));
+      assertThat(directedGraph.inDegree(node)).isSameInstanceAs(transpose.outDegree(node));
+      assertThat(directedGraph.outDegree(node)).isSameInstanceAs(transpose.inDegree(node));
     }
 
     directedGraph.putEdgeValue(N2, N1, E21);
@@ -290,7 +286,7 @@ public class GraphsTest {
     MutableNetwork<Integer, String> undirectedGraph = NetworkBuilder.undirected().build();
     undirectedGraph.addEdge(N1, N2, E12);
 
-    assertThat(transpose(undirectedGraph)).isSameAs(undirectedGraph);
+    assertThat(transpose(undirectedGraph)).isSameInstanceAs(undirectedGraph);
   }
 
   @Test
@@ -315,7 +311,7 @@ public class GraphsTest {
 
     Network<Integer, String> transpose = transpose(directedGraph);
     assertThat(transpose).isEqualTo(expectedTranspose);
-    assertThat(transpose(transpose)).isSameAs(directedGraph);
+    assertThat(transpose(transpose)).isSameInstanceAs(directedGraph);
     AbstractNetworkTest.validateNetwork(transpose);
 
     assertThat(transpose.edgesConnecting(N1, N2)).isEmpty();
@@ -323,8 +319,8 @@ public class GraphsTest {
     assertThat(transpose.edgeConnectingOrNull(N1, N2)).isNull();
 
     for (Integer node : directedGraph.nodes()) {
-      assertThat(directedGraph.inDegree(node)).isSameAs(transpose.outDegree(node));
-      assertThat(directedGraph.outDegree(node)).isSameAs(transpose.inDegree(node));
+      assertThat(directedGraph.inDegree(node)).isSameInstanceAs(transpose.outDegree(node));
+      assertThat(directedGraph.outDegree(node)).isSameInstanceAs(transpose.inDegree(node));
     }
 
     directedGraph.addEdge(N2, N1, E21);
@@ -400,20 +396,14 @@ public class GraphsTest {
   public void inducedSubgraph_nodeNotInGraph() {
     MutableNetwork<Integer, String> undirectedGraph = NetworkBuilder.undirected().build();
 
-    try {
-      inducedSubgraph(undirectedGraph, ImmutableSet.of(N1));
-      fail("Should have rejected getting induced subgraph with node not in original graph.");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> inducedSubgraph(undirectedGraph, ImmutableSet.of(N1)));
   }
 
   @Test
   public void copyOf_nullArgument() {
-    try {
-      copyOf((Graph<?>) null);
-      fail("Should have rejected a null graph.");
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> copyOf((Graph<?>) null));
   }
 
   @Test
@@ -476,20 +466,13 @@ public class GraphsTest {
     assertThat(directedGraph.edgesConnecting(N2, N1)).isEmpty();
 
     // By default, parallel edges are not allowed.
-    try {
-      directedGraph.addEdge(N1, N2, E12_A);
-      fail(ERROR_ADDED_PARALLEL_EDGE);
-    } catch (IllegalArgumentException e) {
-      assertThat(e.getMessage()).contains(ERROR_PARALLEL_EDGE);
-    }
+    IllegalArgumentException e =
+        assertThrows(IllegalArgumentException.class, () -> directedGraph.addEdge(N1, N2, E12_A));
+    assertThat(e.getMessage()).contains(ERROR_PARALLEL_EDGE);
 
     // By default, self-loop edges are not allowed.
-    try {
-      directedGraph.addEdge(N1, N1, E11);
-      fail(ERROR_ADDED_SELF_LOOP);
-    } catch (IllegalArgumentException e) {
-      assertThat(e.getMessage()).contains(ERROR_SELF_LOOP);
-    }
+    e = assertThrows(IllegalArgumentException.class, () -> directedGraph.addEdge(N1, N1, E11));
+    assertThat(e).hasMessageThat().contains(ERROR_SELF_LOOP);
   }
 
   @Test
@@ -502,26 +485,15 @@ public class GraphsTest {
     assertThat(undirectedGraph.edgesConnecting(N2, N1)).isEqualTo(ImmutableSet.of(E12));
 
     // By default, parallel edges are not allowed.
-    try {
-      undirectedGraph.addEdge(N1, N2, E12_A);
-      fail(ERROR_ADDED_PARALLEL_EDGE);
-    } catch (IllegalArgumentException e) {
-      assertThat(e.getMessage()).contains(ERROR_PARALLEL_EDGE);
-    }
-    try {
-      undirectedGraph.addEdge(N2, N1, E21);
-      fail(ERROR_ADDED_PARALLEL_EDGE);
-    } catch (IllegalArgumentException e) {
-      assertThat(e.getMessage()).contains(ERROR_PARALLEL_EDGE);
-    }
+    IllegalArgumentException e =
+        assertThrows(IllegalArgumentException.class, () -> undirectedGraph.addEdge(N1, N2, E12_A));
+    assertThat(e.getMessage()).contains(ERROR_PARALLEL_EDGE);
+    e = assertThrows(IllegalArgumentException.class, () -> undirectedGraph.addEdge(N2, N1, E21));
+    assertThat(e.getMessage()).contains(ERROR_PARALLEL_EDGE);
 
     // By default, self-loop edges are not allowed.
-    try {
-      undirectedGraph.addEdge(N1, N1, E11);
-      fail(ERROR_ADDED_SELF_LOOP);
-    } catch (IllegalArgumentException e) {
-      assertThat(e.getMessage()).contains(ERROR_SELF_LOOP);
-    }
+    e = assertThrows(IllegalArgumentException.class, () -> undirectedGraph.addEdge(N1, N1, E11));
+    assertThat(e).hasMessageThat().contains(ERROR_SELF_LOOP);
   }
 
   @Test
@@ -565,12 +537,10 @@ public class GraphsTest {
 
   @Test
   public void builder_expectedNodeCount_negative() {
-    try {
-      NetworkBuilder.directed().expectedNodeCount(-1);
-      fail("Should have rejected negative expected node count.");
-    } catch (IllegalArgumentException e) {
-      assertThat(e.getMessage()).contains(ERROR_NEGATIVE_COUNT);
-    }
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class, () -> NetworkBuilder.directed().expectedNodeCount(-1));
+    assertThat(e.getMessage()).contains(ERROR_NEGATIVE_COUNT);
   }
 
   @Test
@@ -593,12 +563,10 @@ public class GraphsTest {
 
   @Test
   public void builder_expectedEdgeCount_negative() {
-    try {
-      NetworkBuilder.directed().expectedEdgeCount(-1);
-      fail("Should have rejected negative expected edge count.");
-    } catch (IllegalArgumentException e) {
-      assertThat(e.getMessage()).contains(ERROR_NEGATIVE_COUNT);
-    }
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class, () -> NetworkBuilder.directed().expectedEdgeCount(-1));
+    assertThat(e.getMessage()).contains(ERROR_NEGATIVE_COUNT);
   }
 
   private static <N> void checkTransitiveClosure(Graph<N> originalGraph, Graph<N> expectedClosure) {

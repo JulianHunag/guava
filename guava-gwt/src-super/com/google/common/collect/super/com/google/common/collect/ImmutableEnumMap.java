@@ -27,6 +27,7 @@ import java.util.Map.Entry;
  *
  * @author Hayward Chan
  */
+@ElementTypesAreNonnullByDefault
 final class ImmutableEnumMap<K, V> extends ForwardingImmutableMap<K, V> {
   static <K, V> ImmutableMap<K, V> asImmutable(Map<K, V> map) {
     for (Entry<K, V> entry : checkNotNull(map).entrySet()) {
@@ -36,7 +37,7 @@ final class ImmutableEnumMap<K, V> extends ForwardingImmutableMap<K, V> {
     return new ImmutableEnumMap<K, V>(map);
   }
 
-  ImmutableEnumMap(Map<? extends K, ? extends V> delegate) {
-    super(WellBehavedMap.wrap(delegate));
+  private ImmutableEnumMap(Map<? extends K, ? extends V> delegate) {
+    super(delegate);
   }
 }

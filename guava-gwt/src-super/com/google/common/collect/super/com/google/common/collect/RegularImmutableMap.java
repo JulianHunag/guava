@@ -23,13 +23,20 @@ import java.util.Map;
  *
  * @author Hayward Chan
  */
+@ElementTypesAreNonnullByDefault
 final class RegularImmutableMap<K, V> extends ForwardingImmutableMap<K, V> {
+
+  static final ImmutableMap<Object, Object> EMPTY = new RegularImmutableMap<Object, Object>();
 
   RegularImmutableMap(Map<? extends K, ? extends V> delegate) {
     super(delegate);
   }
 
   RegularImmutableMap(Entry<? extends K, ? extends V>... entries) {
-    super(entries);
+    this(/* throwIfDuplicateKeys= */ true, entries);
+  }
+
+  RegularImmutableMap(boolean throwIfDuplicateKeys, Entry<? extends K, ? extends V>[] entries) {
+    super(throwIfDuplicateKeys, entries);
   }
 }

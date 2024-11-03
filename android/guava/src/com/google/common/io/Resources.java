@@ -17,9 +17,8 @@ package com.google.common.io;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
-import com.google.common.base.Charsets;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
@@ -28,22 +27,23 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Provides utility methods for working with resources in the classpath. Note that even though these
  * methods use {@link URL} parameters, they are usually not appropriate for HTTP or other
  * non-classpath resources.
  *
- * <p>All method parameters must be non-null unless documented otherwise.
- *
  * @author Chris Nokleberg
  * @author Ben Yu
  * @author Colin Decker
  * @since 1.0
  */
-@Beta
+@J2ktIncompatible
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 public final class Resources {
   private Resources() {}
 
@@ -100,8 +100,8 @@ public final class Resources {
    * Reads all characters from a URL into a {@link String}, using the given character set.
    *
    * @param url the URL to read from
-   * @param charset the charset used to decode the input stream; see {@link Charsets} for helpful
-   *     predefined constants
+   * @param charset the charset used to decode the input stream; see {@link StandardCharsets} for
+   *     helpful predefined constants
    * @return a string containing all the characters from the URL
    * @throws IOException if an I/O error occurs.
    */
@@ -114,15 +114,16 @@ public final class Resources {
    * lines.
    *
    * @param url the URL to read from
-   * @param charset the charset used to decode the input stream; see {@link Charsets} for helpful
-   *     predefined constants
+   * @param charset the charset used to decode the input stream; see {@link StandardCharsets} for
+   *     helpful predefined constants
    * @param callback the LineProcessor to use to handle the lines
    * @return the output of processing the lines
    * @throws IOException if an I/O error occurs
    */
   @CanIgnoreReturnValue // some processors won't return a useful result
-  public static <T> T readLines(URL url, Charset charset, LineProcessor<T> callback)
-      throws IOException {
+  @ParametricNullness
+  public static <T extends @Nullable Object> T readLines(
+      URL url, Charset charset, LineProcessor<T> callback) throws IOException {
     return asCharSource(url, charset).readLines(callback);
   }
 
@@ -134,8 +135,8 @@ public final class Resources {
    * Resources.asCharSource(url, charset).readLines()}.
    *
    * @param url the URL to read from
-   * @param charset the charset used to decode the input stream; see {@link Charsets} for helpful
-   *     predefined constants
+   * @param charset the charset used to decode the input stream; see {@link StandardCharsets} for
+   *     helpful predefined constants
    * @return a mutable {@link List} containing all the lines
    * @throws IOException if an I/O error occurs
    */
@@ -202,6 +203,7 @@ public final class Resources {
    *
    * @throws IllegalArgumentException if the resource is not found
    */
+  @CanIgnoreReturnValue // being used to check if a resource exists
   public static URL getResource(Class<?> contextClass, String resourceName) {
     URL url = contextClass.getResource(resourceName);
     checkArgument(

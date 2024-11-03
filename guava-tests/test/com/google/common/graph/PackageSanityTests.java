@@ -20,7 +20,6 @@ import static com.google.common.graph.TestUtil.ERROR_ELEMENT_NOT_IN_GRAPH;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import com.google.common.testing.AbstractPackageSanityTests;
-import junit.framework.AssertionFailedError;
 
 /**
  * Covers basic sanity checks for the entire package.
@@ -35,20 +34,30 @@ public class PackageSanityTests extends AbstractPackageSanityTests {
   private static final AbstractGraphBuilder<?> GRAPH_BUILDER_B =
       ValueGraphBuilder.directed().allowsSelfLoops(true).expectedNodeCount(16);
 
-  private static final ImmutableGraph<String> IMMUTABLE_GRAPH_A = graphWithNode("A");
-  private static final ImmutableGraph<String> IMMUTABLE_GRAPH_B = graphWithNode("B");
+  private static final ImmutableGraph<String> IMMUTABLE_GRAPH_A =
+      GraphBuilder.directed().<String>immutable().addNode("A").build();
+  private static final ImmutableGraph<String> IMMUTABLE_GRAPH_B =
+      GraphBuilder.directed().<String>immutable().addNode("B").build();
 
   private static final NetworkBuilder<?, ?> NETWORK_BUILDER_A =
       NetworkBuilder.directed().allowsParallelEdges(true).expectedNodeCount(10);
   private static final NetworkBuilder<?, ?> NETWORK_BUILDER_B =
       NetworkBuilder.directed().allowsSelfLoops(true).expectedNodeCount(16);
 
-  private static final ImmutableNetwork<String, String> IMMUTABLE_NETWORK_A = networkWithNode("A");
-  private static final ImmutableNetwork<String, String> IMMUTABLE_NETWORK_B = networkWithNode("B");
+  private static final ImmutableNetwork<String, String> IMMUTABLE_NETWORK_A =
+      NetworkBuilder.directed().<String, String>immutable().addNode("A").build();
+  private static final ImmutableNetwork<String, String> IMMUTABLE_NETWORK_B =
+      NetworkBuilder.directed().<String, String>immutable().addNode("B").build();
 
   public PackageSanityTests() {
+    MutableNetwork<String, String> mutableNetworkA = NetworkBuilder.directed().build();
+    mutableNetworkA.addNode("a");
+    MutableNetwork<String, String> mutableNetworkB = NetworkBuilder.directed().build();
+    mutableNetworkB.addNode("b");
+
     setDistinctValues(AbstractGraphBuilder.class, GRAPH_BUILDER_A, GRAPH_BUILDER_B);
     setDistinctValues(Graph.class, IMMUTABLE_GRAPH_A, IMMUTABLE_GRAPH_B);
+    setDistinctValues(MutableNetwork.class, mutableNetworkA, mutableNetworkB);
     setDistinctValues(NetworkBuilder.class, NETWORK_BUILDER_A, NETWORK_BUILDER_B);
     setDistinctValues(Network.class, IMMUTABLE_NETWORK_A, IMMUTABLE_NETWORK_B);
     setDefault(EndpointPair.class, EndpointPair.ordered("A", "B"));
@@ -58,24 +67,12 @@ public class PackageSanityTests extends AbstractPackageSanityTests {
   public void testNulls() throws Exception {
     try {
       super.testNulls();
-    } catch (AssertionFailedError e) {
+    } catch (AssertionError e) {
       assertWithMessage("Method did not throw null pointer OR element not in graph exception.")
           .that(e)
           .hasCauseThat()
           .hasMessageThat()
           .contains(ERROR_ELEMENT_NOT_IN_GRAPH);
     }
-  }
-
-  private static <N> ImmutableGraph<N> graphWithNode(N node) {
-    MutableGraph<N> graph = GraphBuilder.directed().build();
-    graph.addNode(node);
-    return ImmutableGraph.copyOf(graph);
-  }
-
-  private static <N> ImmutableNetwork<N, N> networkWithNode(N node) {
-    MutableNetwork<N, N> network = NetworkBuilder.directed().build();
-    network.addNode(node);
-    return ImmutableNetwork.copyOf(network);
   }
 }

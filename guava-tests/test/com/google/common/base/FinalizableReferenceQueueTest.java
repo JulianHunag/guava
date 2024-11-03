@@ -16,6 +16,7 @@
 
 package com.google.common.base;
 
+import com.google.common.annotations.GwtIncompatible;
 import com.google.common.base.internal.Finalizer;
 import com.google.common.testing.GcFinalization;
 import java.lang.ref.ReferenceQueue;
@@ -25,26 +26,34 @@ import java.net.URLClassLoader;
 import java.util.Arrays;
 import java.util.Collections;
 import junit.framework.TestCase;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Unit test for {@link FinalizableReferenceQueue}.
  *
  * @author Bob Lee
  */
+// - depends on details of GC and classloading
+// - .class files aren't available
+// - possibly no real concept of separate ClassLoaders?
+@AndroidIncompatible
+@GwtIncompatible
 public class FinalizableReferenceQueueTest extends TestCase {
 
-  private FinalizableReferenceQueue frq;
+  private @Nullable FinalizableReferenceQueue frq;
 
   @Override
   protected void tearDown() throws Exception {
     frq = null;
   }
 
+
   public void testFinalizeReferentCalled() {
     final MockReference reference = new MockReference(frq = new FinalizableReferenceQueue());
 
     GcFinalization.awaitDone(
         new GcFinalization.FinalizationPredicate() {
+          @Override
           public boolean isDone() {
             return reference.finalizeReferentCalled;
           }
@@ -71,13 +80,14 @@ public class FinalizableReferenceQueueTest extends TestCase {
    */
   private WeakReference<ReferenceQueue<Object>> queueReference;
 
+
   public void testThatFinalizerStops() {
     weaklyReferenceQueue();
     GcFinalization.awaitClear(queueReference);
   }
 
   /** If we don't keep a strong reference to the reference object, it won't be enqueued. */
-  FinalizableWeakReference<Object> reference;
+  @Nullable FinalizableWeakReference<Object> reference;
 
   /** Create the FRQ in a method that goes out of scope so that we're sure it will be reclaimed. */
   private void weaklyReferenceQueue() {
@@ -99,7 +109,6 @@ public class FinalizableReferenceQueueTest extends TestCase {
         };
   }
 
-  @AndroidIncompatible // no concept of separate ClassLoaders
   public void testDecoupledLoader() {
     FinalizableReferenceQueue.DecoupledLoader decoupledLoader =
         new FinalizableReferenceQueue.DecoupledLoader() {
@@ -139,14 +148,13 @@ public class FinalizableReferenceQueueTest extends TestCase {
     }
   }
 
-  @AndroidIncompatible // TODO(cpovirk): How significant is this failure?
   public void testGetFinalizerUrl() {
     assertNotNull(getClass().getResource("internal/Finalizer.class"));
   }
 
   public void testFinalizeClassHasNoNestedClasses() throws Exception {
     // Ensure that the Finalizer class has no nested classes.
-    // See https://code.google.com/p/guava-libraries/issues/detail?id=1505
+    // See https://github.com/google/guava/issues/1505
     assertEquals(Collections.emptyList(), Arrays.asList(Finalizer.class.getDeclaredClasses()));
   }
 }

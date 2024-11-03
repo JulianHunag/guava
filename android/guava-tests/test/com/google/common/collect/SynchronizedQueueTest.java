@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Queue;
 import junit.framework.TestCase;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Tests for {@link Synchronized#queue} and {@link Queues#synchronizedQueue}.
@@ -38,7 +39,7 @@ public class SynchronizedQueueTest extends TestCase {
 
   private static final class TestQueue<E> implements Queue<E> {
     private final Queue<E> delegate = Lists.newLinkedList();
-    public final Object mutex = new Integer(1); // something Serializable
+    public final Object mutex = new Object[0]; // something Serializable
 
     @Override
     public boolean offer(E o) {
@@ -47,7 +48,7 @@ public class SynchronizedQueueTest extends TestCase {
     }
 
     @Override
-    public E poll() {
+    public @Nullable E poll() {
       assertTrue(Thread.holdsLock(mutex));
       return delegate.poll();
     }
@@ -65,7 +66,7 @@ public class SynchronizedQueueTest extends TestCase {
     }
 
     @Override
-    public E peek() {
+    public @Nullable E peek() {
       assertTrue(Thread.holdsLock(mutex));
       return delegate.peek();
     }
@@ -152,6 +153,7 @@ public class SynchronizedQueueTest extends TestCase {
     private static final long serialVersionUID = 0;
   }
 
+  @SuppressWarnings("CheckReturnValue")
   public void testHoldsLockOnAllOperations() {
     create().element();
     create().offer("foo");

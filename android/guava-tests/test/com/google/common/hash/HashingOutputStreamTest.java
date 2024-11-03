@@ -26,13 +26,14 @@ import junit.framework.TestCase;
 /**
  * Tests for {@link HashingOutputStream}.
  *
- * @author Nick Piepmeier
+ * @author Zoe Piepmeier
  */
 public class HashingOutputStreamTest extends TestCase {
   private Hasher hasher;
   private HashFunction hashFunction;
   private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 
+  @SuppressWarnings("DoNotMock")
   @Override
   protected void setUp() throws Exception {
     super.setUp();

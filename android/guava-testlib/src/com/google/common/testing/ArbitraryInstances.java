@@ -17,11 +17,13 @@
 package com.google.common.testing;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.CharMatcher;
-import com.google.common.base.Charsets;
 import com.google.common.base.Defaults;
 import com.google.common.base.Equivalence;
 import com.google.common.base.Joiner;
@@ -74,6 +76,7 @@ import com.google.common.io.CharSource;
 import com.google.common.primitives.Primitives;
 import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
+import com.google.errorprone.annotations.Keep;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -123,6 +126,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.UUID;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -141,7 +145,7 @@ import java.util.logging.Logger;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Supplies an arbitrary "default" instance for a wide range of types, often useful in testing
@@ -165,8 +169,9 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * @author Ben Yu
  * @since 12.0
  */
-@Beta
 @GwtIncompatible
+@J2ktIncompatible
+@ElementTypesAreNonnullByDefault
 public final class ArbitraryInstances {
 
   private static final Ordering<Field> BY_FIELD_NAME =
@@ -180,9 +185,9 @@ public final class ArbitraryInstances {
   /**
    * Returns a new {@code MatchResult} that corresponds to a successful match. Apache Harmony (used
    * in Android) requires a successful match in order to generate a {@code MatchResult}:
-   * http://goo.gl/5VQFmC
+   * https://cs.android.com/android/platform/superproject/+/android-2.3.7_r1:libcore/luni/src/main/java/java/util/regex/Matcher.java;l=550;drc=5850271b4ab93ebc27c1d49169a348c6be3c7f04
    */
-  private static MatchResult newMatchResult() {
+  private static MatchResult createMatchResult() {
     Matcher matcher = Pattern.compile(".").matcher("X");
     matcher.find();
     return matcher.toMatchResult();
@@ -200,11 +205,12 @@ public final class ArbitraryInstances {
           .put(CharSequence.class, "")
           .put(String.class, "")
           .put(Pattern.class, Pattern.compile(""))
-          .put(MatchResult.class, newMatchResult())
-          .put(TimeUnit.class, TimeUnit.SECONDS)
-          .put(Charset.class, Charsets.UTF_8)
+          .put(MatchResult.class, createMatchResult())
+          .put(TimeUnit.class, SECONDS)
+          .put(Charset.class, UTF_8)
           .put(Currency.class, Currency.getInstance(Locale.US))
           .put(Locale.class, Locale.US)
+          .put(UUID.class, UUID.randomUUID())
           // common.base
           .put(CharMatcher.class, CharMatcher.none())
           .put(Joiner.class, Joiner.on(','))
@@ -232,7 +238,7 @@ public final class ArbitraryInstances {
           .put(ByteSource.class, ByteSource.empty())
           .put(CharSource.class, CharSource.empty())
           .put(ByteSink.class, NullByteSink.INSTANCE)
-          .put(CharSink.class, NullByteSink.INSTANCE.asCharSink(Charsets.UTF_8))
+          .put(CharSink.class, NullByteSink.INSTANCE.asCharSink(UTF_8))
           // All collections are immutable empty. So safe for any type parameter.
           .put(Iterator.class, ImmutableSet.of().iterator())
           .put(PeekingIterator.class, Iterators.peekingIterator(ImmutableSet.of().iterator()))
@@ -325,8 +331,7 @@ public final class ArbitraryInstances {
   }
 
   @SuppressWarnings("unchecked") // it's a subtype map
-  @NullableDecl
-  private static <T> Class<? extends T> getImplementation(Class<T> type) {
+  private static <T> @Nullable Class<? extends T> getImplementation(Class<T> type) {
     return (Class<? extends T>) implementations.get(type);
   }
 
@@ -336,8 +341,7 @@ public final class ArbitraryInstances {
    * Returns an arbitrary instance for {@code type}, or {@code null} if no arbitrary instance can be
    * determined.
    */
-  @NullableDecl
-  public static <T> T get(Class<T> type) {
+  public static <T> @Nullable T get(Class<T> type) {
     T defaultValue = DEFAULTS.getInstance(type);
     if (defaultValue != null) {
       return defaultValue;
@@ -348,7 +352,7 @@ public final class ArbitraryInstances {
     }
     if (type.isEnum()) {
       T[] enumConstants = type.getEnumConstants();
-      return (enumConstants.length == 0) ? null : enumConstants[0];
+      return (enumConstants == null || enumConstants.length == 0) ? null : enumConstants[0];
     }
     if (type.isArray()) {
       return createEmptyArray(type);
@@ -377,8 +381,7 @@ public final class ArbitraryInstances {
     }
   }
 
-  @NullableDecl
-  private static <T> T arbitraryConstantInstanceOrNull(Class<T> type) {
+  private static <T> @Nullable T arbitraryConstantInstanceOrNull(Class<T> type) {
     Field[] fields = type.getDeclaredFields();
     Arrays.sort(fields, BY_FIELD_NAME);
     for (Field field : fields) {
@@ -402,7 +405,8 @@ public final class ArbitraryInstances {
   }
 
   private static <T> T createEmptyArray(Class<T> arrayType) {
-    return arrayType.cast(Array.newInstance(arrayType.getComponentType(), 0));
+    // getComponentType() is non-null because we call createEmptyArray only with an array type.
+    return arrayType.cast(Array.newInstance(requireNonNull(arrayType.getComponentType()), 0));
   }
 
   // Internal implementations of some classes, with public default constructor that get() needs.
@@ -421,6 +425,7 @@ public final class ArbitraryInstances {
     }
 
     public static final class DeterministicRandom extends Random {
+      @Keep
       public DeterministicRandom() {
         super(0);
       }
@@ -468,6 +473,7 @@ public final class ArbitraryInstances {
   // Compare by toString() to satisfy 2 properties:
   // 1. compareTo(null) should throw NullPointerException
   // 2. the order is deterministic and easy to understand, for debugging purpose.
+  @SuppressWarnings("ComparableType")
   private static final class ByToString implements Comparable<Object>, Serializable {
     private static final ByToString INSTANCE = new ByToString();
 
@@ -487,11 +493,13 @@ public final class ArbitraryInstances {
   }
 
   // Always equal is a valid total ordering. And it works for any Object.
-  private static final class AlwaysEqual extends Ordering<Object> implements Serializable {
+  private static final class AlwaysEqual extends Ordering<@Nullable Object>
+      implements Serializable {
     private static final AlwaysEqual INSTANCE = new AlwaysEqual();
 
     @Override
-    public int compare(Object o1, Object o2) {
+    @SuppressWarnings("UnusedVariable") // intentionally weird Comparator
+    public int compare(@Nullable Object o1, @Nullable Object o2) {
       return 0;
     }
 

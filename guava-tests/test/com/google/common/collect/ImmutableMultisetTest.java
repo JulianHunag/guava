@@ -17,11 +17,16 @@
 package com.google.common.collect;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.ImmutableMultiset.toImmutableMultiset;
+import static com.google.common.collect.Iterators.emptyIterator;
+import static com.google.common.collect.Iterators.singletonIterator;
+import static com.google.common.collect.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.truth.Truth.assertThat;
 import static java.util.Arrays.asList;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.testing.ListTestSuiteBuilder;
 import com.google.common.collect.testing.MinimalCollection;
 import com.google.common.collect.testing.SetTestSuiteBuilder;
@@ -36,11 +41,9 @@ import com.google.common.testing.CollectorTester;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.NullPointerTester;
 import com.google.common.testing.SerializableTester;
-import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -58,8 +61,10 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * @author Jared Levy
  */
 @GwtCompatible(emulated = true)
+@ElementTypesAreNonnullByDefault
 public class ImmutableMultisetTest extends TestCase {
 
+  @J2ktIncompatible
   @GwtIncompatible // suite // TODO(cpovirk): add to collect/gwt/suites
   public static Test suite() {
     TestSuite suite = new TestSuite();
@@ -218,6 +223,7 @@ public class ImmutableMultisetTest extends TestCase {
     assertEquals(HashMultiset.create(asList("a")), multiset);
   }
 
+  @SuppressWarnings("ArrayAsKeyOfSetOrMap")
   public void testCreation_arrayOfArray() {
     String[] array = new String[] {"a"};
     Multiset<String[]> multiset = ImmutableMultiset.<String[]>of(array);
@@ -227,12 +233,8 @@ public class ImmutableMultisetTest extends TestCase {
   }
 
   public void testCreation_arrayContainingOnlyNull() {
-    String[] array = new String[] {null};
-    try {
-      ImmutableMultiset.copyOf(array);
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    @Nullable String[] array = new @Nullable String[] {null};
+    assertThrows(NullPointerException.class, () -> ImmutableMultiset.copyOf((String[]) array));
   }
 
   public void testCopyOf_collection_empty() {
@@ -255,12 +257,9 @@ public class ImmutableMultisetTest extends TestCase {
   }
 
   public void testCopyOf_collectionContainingNull() {
-    Collection<String> c = MinimalCollection.of("a", null, "b");
-    try {
-      ImmutableMultiset.copyOf(c);
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    Collection<@Nullable String> c = MinimalCollection.of("a", null, "b");
+    assertThrows(
+        NullPointerException.class, () -> ImmutableMultiset.copyOf((Collection<String>) c));
   }
 
   public void testCopyOf_multiset_empty() {
@@ -282,22 +281,19 @@ public class ImmutableMultisetTest extends TestCase {
   }
 
   public void testCopyOf_multisetContainingNull() {
-    Multiset<String> c = HashMultiset.create(asList("a", null, "b"));
-    try {
-      ImmutableMultiset.copyOf(c);
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    Multiset<@Nullable String> c =
+        HashMultiset.create(Arrays.<@Nullable String>asList("a", null, "b"));
+    assertThrows(NullPointerException.class, () -> ImmutableMultiset.copyOf((Multiset<String>) c));
   }
 
   public void testCopyOf_iterator_empty() {
-    Iterator<String> iterator = Iterators.emptyIterator();
+    Iterator<String> iterator = emptyIterator();
     Multiset<String> multiset = ImmutableMultiset.copyOf(iterator);
     assertTrue(multiset.isEmpty());
   }
 
   public void testCopyOf_iterator_oneElement() {
-    Iterator<String> iterator = Iterators.singletonIterator("a");
+    Iterator<String> iterator = singletonIterator("a");
     Multiset<String> multiset = ImmutableMultiset.copyOf(iterator);
     assertEquals(HashMultiset.create(asList("a")), multiset);
   }
@@ -309,12 +305,10 @@ public class ImmutableMultisetTest extends TestCase {
   }
 
   public void testCopyOf_iteratorContainingNull() {
-    Iterator<String> iterator = asList("a", null, "b").iterator();
-    try {
-      ImmutableMultiset.copyOf(iterator);
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    Iterator<@Nullable String> iterator =
+        Arrays.<@Nullable String>asList("a", null, "b").iterator();
+    assertThrows(
+        NullPointerException.class, () -> ImmutableMultiset.copyOf((Iterator<String>) iterator));
   }
 
   public void testToImmutableMultiset() {
@@ -358,17 +352,17 @@ public class ImmutableMultisetTest extends TestCase {
       }
 
       @Override
-      public boolean equals(Object obj) {
+      public boolean equals(@Nullable Object obj) {
         return obj instanceof TypeWithDuplicates && ((TypeWithDuplicates) obj).a == a;
       }
 
-      public boolean fullEquals(TypeWithDuplicates other) {
+      public boolean fullEquals(@Nullable TypeWithDuplicates other) {
         return other != null && a == other.a && b == other.b;
       }
     }
 
     Collector<TypeWithDuplicates, ?, ImmutableMultiset<TypeWithDuplicates>> collector =
-        ImmutableMultiset.toImmutableMultiset();
+        toImmutableMultiset();
     BiPredicate<ImmutableMultiset<TypeWithDuplicates>, ImmutableMultiset<TypeWithDuplicates>>
         equivalence =
             (ms1, ms2) -> {
@@ -395,7 +389,7 @@ public class ImmutableMultisetTest extends TestCase {
             b1,
             c,
             b2);
-    collector = ImmutableMultiset.toImmutableMultiset(e -> e, e -> 1);
+    collector = toImmutableMultiset(e -> e, e -> 1);
     CollectorTester.of(collector, equivalence)
         .expectCollects(
             ImmutableMultiset.<TypeWithDuplicates>builder().add(a).addCopies(b1, 2).add(c).build(),
@@ -512,86 +506,65 @@ public class ImmutableMultisetTest extends TestCase {
 
   public void testBuilderAddHandlesNullsCorrectly() {
     ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
-    try {
-      builder.add((String) null);
-      fail("expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> builder.add((String) null));
   }
 
   public void testBuilderAddAllHandlesNullsCorrectly() {
+    {
     ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
-    try {
-      builder.addAll((Collection<String>) null);
-      fail("expected NullPointerException");
-    } catch (NullPointerException expected) {
+      assertThrows(NullPointerException.class, () -> builder.addAll((Collection<String>) null));
     }
 
-    builder = ImmutableMultiset.builder();
-    List<String> listWithNulls = asList("a", null, "b");
-    try {
-      builder.addAll(listWithNulls);
-      fail("expected NullPointerException");
-    } catch (NullPointerException expected) {
+    {
+      ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
+    List<@Nullable String> listWithNulls = asList("a", null, "b");
+      assertThrows(NullPointerException.class, () -> builder.addAll((List<String>) listWithNulls));
     }
 
-    builder = ImmutableMultiset.builder();
-    Multiset<String> multisetWithNull = LinkedHashMultiset.create(asList("a", null, "b"));
-    try {
-      builder.addAll(multisetWithNull);
-      fail("expected NullPointerException");
-    } catch (NullPointerException expected) {
+    {
+      ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
+    Multiset<@Nullable String> multisetWithNull =
+        LinkedHashMultiset.create(Arrays.<@Nullable String>asList("a", null, "b"));
+      assertThrows(
+          NullPointerException.class, () -> builder.addAll((Multiset<String>) multisetWithNull));
     }
   }
 
   public void testBuilderAddCopiesHandlesNullsCorrectly() {
     ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
-    try {
-      builder.addCopies(null, 2);
-      fail("expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> builder.addCopies(null, 2));
   }
 
   public void testBuilderAddCopiesIllegal() {
     ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
-    try {
-      builder.addCopies("a", -2);
-      fail("expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> builder.addCopies("a", -2));
   }
 
   public void testBuilderSetCountHandlesNullsCorrectly() {
     ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
-    try {
-      builder.setCount(null, 2);
-      fail("expected NullPointerException");
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> builder.setCount(null, 2));
   }
 
   public void testBuilderSetCountIllegal() {
     ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
-    try {
-      builder.setCount("a", -2);
-      fail("expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> builder.setCount("a", -2));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // NullPointerTester
   public void testNullPointers() {
     NullPointerTester tester = new NullPointerTester();
     tester.testAllPublicStaticMethods(ImmutableMultiset.class);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // SerializableTester
   public void testSerialization_empty() {
     Collection<String> c = ImmutableMultiset.of();
     assertSame(c, SerializableTester.reserialize(c));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // SerializableTester
   public void testSerialization_multiple() {
     Collection<String> c = ImmutableMultiset.of("a", "b", "a");
@@ -599,6 +572,7 @@ public class ImmutableMultisetTest extends TestCase {
     assertThat(copy).containsExactly("a", "a", "b").inOrder();
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // SerializableTester
   public void testSerialization_elementSet() {
     Multiset<String> c = ImmutableMultiset.of("a", "b", "a");
@@ -606,6 +580,7 @@ public class ImmutableMultisetTest extends TestCase {
     assertThat(copy).containsExactly("a", "b").inOrder();
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // SerializableTester
   public void testSerialization_entrySet() {
     Multiset<String> c = ImmutableMultiset.of("a", "b", "c");
@@ -613,11 +588,14 @@ public class ImmutableMultisetTest extends TestCase {
   }
 
   public void testEquals_immutableMultiset() {
-    Collection<String> c = ImmutableMultiset.of("a", "b", "a");
-    assertEquals(c, ImmutableMultiset.of("a", "b", "a"));
-    assertEquals(c, ImmutableMultiset.of("a", "a", "b"));
-    assertThat(c).isNotEqualTo(ImmutableMultiset.of("a", "b"));
-    assertThat(c).isNotEqualTo(ImmutableMultiset.of("a", "b", "c", "d"));
+    new EqualsTester()
+        .addEqualityGroup(
+            ImmutableMultiset.of("a", "b", "a"),
+            ImmutableMultiset.of("a", "b", "a"),
+            ImmutableMultiset.of("a", "a", "b"))
+        .addEqualityGroup(ImmutableMultiset.of("a", "b"))
+        .addEqualityGroup(ImmutableMultiset.of("a", "b", "c", "d"))
+        .testEquals();
   }
 
   public void testIterationOrder() {
@@ -641,6 +619,7 @@ public class ImmutableMultisetTest extends TestCase {
     assertEquals(4, list.lastIndexOf("b"));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // SerializableTester
   public void testSerialization_asList() {
     ImmutableMultiset<String> multiset = ImmutableMultiset.of("a", "a", "b", "b", "b");
@@ -667,187 +646,5 @@ public class ImmutableMultisetTest extends TestCase {
     builder.add("b");
     assertThat(builder.build().elementSet()).containsExactly("a", "c", "b").inOrder();
     assertThat(multiset.elementSet()).containsExactly("a", "c").inOrder();
-  }
-
-  /**
-   * A Comparable wrapper around a String which executes callbacks on calls to hashCode, equals, and
-   * compareTo.
-   */
-  private static class CountsHashCodeAndEquals implements Comparable<CountsHashCodeAndEquals> {
-    private final String delegateString;
-    private final Runnable onHashCode;
-    private final Runnable onEquals;
-    private final Runnable onCompareTo;
-
-    CountsHashCodeAndEquals(
-        String delegateString, Runnable onHashCode, Runnable onEquals, Runnable onCompareTo) {
-      this.delegateString = delegateString;
-      this.onHashCode = onHashCode;
-      this.onEquals = onEquals;
-      this.onCompareTo = onCompareTo;
-    }
-
-    @Override
-    public int hashCode() {
-      onHashCode.run();
-      return delegateString.hashCode();
-    }
-
-    @Override
-    public boolean equals(@Nullable Object other) {
-      onEquals.run();
-      return other instanceof CountsHashCodeAndEquals
-          && delegateString.equals(((CountsHashCodeAndEquals) other).delegateString);
-    }
-
-    @Override
-    public int compareTo(CountsHashCodeAndEquals o) {
-      onCompareTo.run();
-      return delegateString.compareTo(o.delegateString);
-    }
-  }
-
-  /** A holder of counters for calls to hashCode, equals, and compareTo. */
-  private static final class CallsCounter {
-    long hashCode;
-    long equals;
-    long compareTo;
-
-    long total() {
-      return hashCode + equals + compareTo;
-    }
-
-    void zero() {
-      hashCode = 0;
-      equals = 0;
-      compareTo = 0;
-    }
-  }
-
-  /** All the ways to create an ImmutableMultiset. */
-  enum ConstructionPathway {
-    COPY_OF_COLLECTION {
-      @Override
-      ImmutableMultiset<?> create(List<?> keys) {
-        return ImmutableMultiset.copyOf(keys);
-      }
-    },
-    COPY_OF_ITERATOR {
-      @Override
-      ImmutableMultiset<?> create(List<?> keys) {
-        return ImmutableMultiset.copyOf(keys.iterator());
-      }
-    },
-    BUILDER_ADD_ENTRY_BY_ENTRY {
-      @Override
-      ImmutableMultiset<?> create(List<?> keys) {
-        ImmutableMultiset.Builder<Object> builder = ImmutableMultiset.builder();
-        for (Object o : keys) {
-          builder.add(o);
-        }
-        return builder.build();
-      }
-    },
-    BUILDER_ADD_ALL_COLLECTION {
-      @Override
-      ImmutableMultiset<?> create(List<?> keys) {
-        ImmutableMultiset.Builder<Object> builder = ImmutableMultiset.builder();
-        builder.addAll(keys);
-        return builder.build();
-      }
-    };
-
-    @CanIgnoreReturnValue
-    abstract ImmutableMultiset<?> create(List<?> keys);
-  }
-
-  /**
-   * Returns a list of objects with the same hash code, of size 2^power, counting calls to equals,
-   * hashCode, and compareTo in counter.
-   */
-  static List<CountsHashCodeAndEquals> createAdversarialInput(int power, CallsCounter counter) {
-    String str1 = "Aa";
-    String str2 = "BB";
-    assertEquals(str1.hashCode(), str2.hashCode());
-    List<String> haveSameHashes2 = Arrays.asList(str1, str2);
-    List<CountsHashCodeAndEquals> result =
-        Lists.newArrayList(
-            Lists.transform(
-                Lists.cartesianProduct(Collections.nCopies(power, haveSameHashes2)),
-                strs ->
-                    new CountsHashCodeAndEquals(
-                        String.join("", strs),
-                        () -> counter.hashCode++,
-                        () -> counter.equals++,
-                        () -> counter.compareTo++)));
-    assertEquals(
-        result.get(0).delegateString.hashCode(),
-        result.get(result.size() - 1).delegateString.hashCode());
-    return result;
-  }
-
-  @GwtIncompatible
-  public void testResistsHashFloodingInConstruction() {
-    CallsCounter smallCounter = new CallsCounter();
-    List<CountsHashCodeAndEquals> haveSameHashesSmall = createAdversarialInput(10, smallCounter);
-    int smallSize = haveSameHashesSmall.size();
-
-    CallsCounter largeCounter = new CallsCounter();
-    List<CountsHashCodeAndEquals> haveSameHashesLarge = createAdversarialInput(15, largeCounter);
-    int largeSize = haveSameHashesLarge.size();
-
-    for (ConstructionPathway pathway : ConstructionPathway.values()) {
-      smallCounter.zero();
-      pathway.create(haveSameHashesSmall);
-      long smallOps = smallCounter.total();
-
-      largeCounter.zero();
-      pathway.create(haveSameHashesLarge);
-      long largeOps = largeCounter.total();
-
-      double ratio = (double) largeOps / smallOps;
-      assertThat(ratio)
-          .named(
-              "ratio of equals/hashCode/compareTo operations to build an ImmutableMultiset via %s"
-                  + " with %s entries versus %s entries",
-              pathway, largeSize, smallSize)
-          .isAtMost(2 * (largeSize * Math.log(largeSize)) / (smallSize * Math.log(smallSize)));
-      // allow up to 2x wobble in the constant factors
-    }
-  }
-
-  @GwtIncompatible
-  public void testResistsHashFloodingOnCount() {
-    CallsCounter smallCounter = new CallsCounter();
-    List<CountsHashCodeAndEquals> haveSameHashesSmall = createAdversarialInput(10, smallCounter);
-    int smallSize = haveSameHashesSmall.size();
-    ImmutableMultiset<?> smallMap =
-        ConstructionPathway.COPY_OF_COLLECTION.create(haveSameHashesSmall);
-    long worstCaseQuerySmall = worstCaseQueryOperations(smallMap, smallCounter);
-
-    CallsCounter largeCounter = new CallsCounter();
-    List<CountsHashCodeAndEquals> haveSameHashesLarge = createAdversarialInput(15, largeCounter);
-    int largeSize = haveSameHashesLarge.size();
-    ImmutableMultiset<?> largeMap =
-        ConstructionPathway.COPY_OF_COLLECTION.create(haveSameHashesLarge);
-    long worstCaseQueryLarge = worstCaseQueryOperations(largeMap, largeCounter);
-
-    double ratio = (double) worstCaseQueryLarge / worstCaseQuerySmall;
-    assertThat(ratio)
-        .named(
-            "Ratio of worst case query operations for an ImmutableMultiset of size %s versus %s",
-            largeSize, smallSize)
-        .isAtMost(2 * Math.log(largeSize) / Math.log(smallSize));
-    // allow up to 2x wobble in the constant factors
-  }
-
-  private static long worstCaseQueryOperations(Multiset<?> multiset, CallsCounter counter) {
-    long worstCalls = 0;
-    for (Object k : multiset.elementSet()) {
-      counter.zero();
-      int unused = multiset.count(k);
-      worstCalls = Math.max(worstCalls, counter.total());
-    }
-    return worstCalls;
   }
 }

@@ -17,8 +17,13 @@ import static java.lang.Double.doubleToRawLongBits;
 import static java.lang.Double.longBitsToDouble;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.primitives.ImmutableLongArray;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicLongArray;
 
 /**
@@ -26,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
  * java.util.concurrent.atomic} package specification for description of the properties of atomic
  * variables.
  *
- * <p><a name="bitEquals"></a>This class compares primitive {@code double} values in methods such as
+ * <p><a id="bitEquals"></a>This class compares primitive {@code double} values in methods such as
  * {@link #compareAndSet} by comparing their bitwise representation using {@link
  * Double#doubleToRawLongBits}, which differs from both the primitive double {@code ==} operator and
  * from {@link Double#equals}, as if implemented by:
@@ -44,7 +49,9 @@ import java.util.concurrent.atomic.AtomicLongArray;
  * @since 11.0
  */
 @GwtIncompatible
-public class AtomicDoubleArray implements java.io.Serializable {
+@J2ktIncompatible
+@ElementTypesAreNonnullByDefault
+public class AtomicDoubleArray implements Serializable {
   private static final long serialVersionUID = 0L;
 
   // Making this non-final is the lesser evil according to Effective
@@ -68,7 +75,7 @@ public class AtomicDoubleArray implements java.io.Serializable {
    * @throws NullPointerException if array is null
    */
   public AtomicDoubleArray(double[] array) {
-    final int len = array.length;
+    int len = array.length;
     long[] longArray = new long[len];
     for (int i = 0; i < len; i++) {
       longArray[i] = doubleToRawLongBits(array[i]);
@@ -96,7 +103,7 @@ public class AtomicDoubleArray implements java.io.Serializable {
   }
 
   /**
-   * Sets the element at position {@code i} to the given value.
+   * Atomically sets the element at position {@code i} to the given value.
    *
    * @param i the index
    * @param newValue the new value
@@ -187,6 +194,7 @@ public class AtomicDoubleArray implements java.io.Serializable {
    * @param i the index
    * @param delta the value to add
    * @return the updated value
+   * @since 31.1
    */
   @CanIgnoreReturnValue
   public double addAndGet(int i, double delta) {
@@ -206,6 +214,7 @@ public class AtomicDoubleArray implements java.io.Serializable {
    *
    * @return the String representation of the current values of array
    */
+  @Override
   public String toString() {
     int iMax = length() - 1;
     if (iMax == -1) {
@@ -230,7 +239,7 @@ public class AtomicDoubleArray implements java.io.Serializable {
    * @serialData The length of the array is emitted (int), followed by all of its elements (each a
    *     {@code double}) in the proper order.
    */
-  private void writeObject(java.io.ObjectOutputStream s) throws java.io.IOException {
+  private void writeObject(ObjectOutputStream s) throws IOException {
     s.defaultWriteObject();
 
     // Write out array length
@@ -244,8 +253,7 @@ public class AtomicDoubleArray implements java.io.Serializable {
   }
 
   /** Reconstitutes the instance from a stream (that is, deserializes it). */
-  private void readObject(java.io.ObjectInputStream s)
-      throws java.io.IOException, ClassNotFoundException {
+  private void readObject(ObjectInputStream s) throws IOException, ClassNotFoundException {
     s.defaultReadObject();
 
     int length = s.readInt();

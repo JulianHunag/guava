@@ -15,9 +15,10 @@
 package com.google.common.util.concurrent;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
@@ -26,7 +27,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.google.j2objc.annotations.Weak;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,8 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
-import java.util.logging.Logger;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import javax.annotation.CheckForNull;
 
 /**
  * The {@code CycleDetectingLockFactory} creates {@link ReentrantLock} instances and {@link
@@ -159,9 +158,9 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * @author Darick Tong
  * @since 13.0
  */
-@Beta
-@CanIgnoreReturnValue // TODO(cpovirk): Consider being more strict.
+@J2ktIncompatible
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 public class CycleDetectingLockFactory {
 
   /**
@@ -171,7 +170,6 @@ public class CycleDetectingLockFactory {
    *
    * @since 13.0
    */
-  @Beta
   public interface Policy {
 
     /**
@@ -191,7 +189,6 @@ public class CycleDetectingLockFactory {
    *
    * @since 13.0
    */
-  @Beta
   public enum Policies implements Policy {
     /**
      * When potential deadlock is detected, this policy results in the throwing of the {@code
@@ -213,7 +210,7 @@ public class CycleDetectingLockFactory {
     WARN {
       @Override
       public void handlePotentialDeadlock(PotentialDeadlockException e) {
-        logger.log(Level.SEVERE, "Detected potential deadlock", e);
+        logger.get().log(Level.SEVERE, "Detected potential deadlock", e);
       }
     },
 
@@ -268,7 +265,8 @@ public class CycleDetectingLockFactory {
   }
 
   // A static mapping from an Enum type to its set of LockGraphNodes.
-  private static final ConcurrentMap<Class<? extends Enum>, Map<? extends Enum, LockGraphNode>>
+  private static final ConcurrentMap<
+          Class<? extends Enum<?>>, Map<? extends Enum<?>, LockGraphNode>>
       lockGraphNodesPerType = new MapMaker().weakKeys().makeMap();
 
   /** Creates a {@code CycleDetectingLockFactory.WithExplicitOrdering<E>}. */
@@ -280,16 +278,18 @@ public class CycleDetectingLockFactory {
     checkNotNull(policy);
     @SuppressWarnings("unchecked")
     Map<E, LockGraphNode> lockGraphNodes = (Map<E, LockGraphNode>) getOrCreateNodes(enumClass);
-    return new WithExplicitOrdering<E>(policy, lockGraphNodes);
+    return new WithExplicitOrdering<>(policy, lockGraphNodes);
   }
 
-  private static Map<? extends Enum, LockGraphNode> getOrCreateNodes(Class<? extends Enum> clazz) {
-    Map<? extends Enum, LockGraphNode> existing = lockGraphNodesPerType.get(clazz);
+  @SuppressWarnings("unchecked")
+  private static <E extends Enum<E>> Map<? extends E, LockGraphNode> getOrCreateNodes(
+      Class<E> clazz) {
+    Map<E, LockGraphNode> existing = (Map<E, LockGraphNode>) lockGraphNodesPerType.get(clazz);
     if (existing != null) {
       return existing;
     }
-    Map<? extends Enum, LockGraphNode> created = createNodes(clazz);
-    existing = lockGraphNodesPerType.putIfAbsent(clazz, created);
+    Map<E, LockGraphNode> created = createNodes(clazz);
+    existing = (Map<E, LockGraphNode>) lockGraphNodesPerType.putIfAbsent(clazz, created);
     return MoreObjects.firstNonNull(existing, created);
   }
 
@@ -303,7 +303,7 @@ public class CycleDetectingLockFactory {
   static <E extends Enum<E>> Map<E, LockGraphNode> createNodes(Class<E> clazz) {
     EnumMap<E, LockGraphNode> map = Maps.newEnumMap(clazz);
     E[] keys = clazz.getEnumConstants();
-    final int numKeys = keys.length;
+    int numKeys = keys.length;
     ArrayList<LockGraphNode> nodes = Lists.newArrayListWithCapacity(numKeys);
     // Create a LockGraphNode for each enum value.
     for (E key : keys) {
@@ -389,7 +389,6 @@ public class CycleDetectingLockFactory {
    * @param <E> The Enum type representing the explicit lock ordering.
    * @since 13.0
    */
-  @Beta
   public static final class WithExplicitOrdering<E extends Enum<E>>
       extends CycleDetectingLockFactory {
 
@@ -417,7 +416,9 @@ public class CycleDetectingLockFactory {
     public ReentrantLock newReentrantLock(E rank, boolean fair) {
       return policy == Policies.DISABLED
           ? new ReentrantLock(fair)
-          : new CycleDetectingReentrantLock(lockGraphNodes.get(rank), fair);
+          // requireNonNull is safe because createNodes inserts an entry for every E.
+          // (If the caller passes `null` for the `rank` parameter, this will throw, but that's OK.)
+          : new CycleDetectingReentrantLock(requireNonNull(lockGraphNodes.get(rank)), fair);
     }
 
     /** Equivalent to {@code newReentrantReadWriteLock(rank, false)}. */
@@ -436,13 +437,16 @@ public class CycleDetectingLockFactory {
     public ReentrantReadWriteLock newReentrantReadWriteLock(E rank, boolean fair) {
       return policy == Policies.DISABLED
           ? new ReentrantReadWriteLock(fair)
-          : new CycleDetectingReentrantReadWriteLock(lockGraphNodes.get(rank), fair);
+          // requireNonNull is safe because createNodes inserts an entry for every E.
+          // (If the caller passes `null` for the `rank` parameter, this will throw, but that's OK.)
+          : new CycleDetectingReentrantReadWriteLock(
+              requireNonNull(lockGraphNodes.get(rank)), fair);
     }
   }
 
   //////// Implementation /////////
 
-  private static final Logger logger = Logger.getLogger(CycleDetectingLockFactory.class.getName());
+  private static final LazyLogger logger = new LazyLogger(CycleDetectingLockFactory.class);
 
   final Policy policy;
 
@@ -524,7 +528,6 @@ public class CycleDetectingLockFactory {
    *
    * @since 13.0
    */
-  @Beta
   public static final class PotentialDeadlockException extends ExampleStackTrace {
 
     private final ExampleStackTrace conflictingStackTrace;
@@ -546,7 +549,8 @@ public class CycleDetectingLockFactory {
      */
     @Override
     public String getMessage() {
-      StringBuilder message = new StringBuilder(super.getMessage());
+      // requireNonNull is safe because ExampleStackTrace sets a non-null message.
+      StringBuilder message = new StringBuilder(requireNonNull(super.getMessage()));
       for (Throwable t = conflictingStackTrace; t != null; t = t.getCause()) {
         message.append(", ").append(t.getMessage());
       }
@@ -599,8 +603,8 @@ public class CycleDetectingLockFactory {
     }
 
     void checkAcquiredLocks(Policy policy, List<LockGraphNode> acquiredLocks) {
-      for (int i = 0, size = acquiredLocks.size(); i < size; i++) {
-        checkAcquiredLock(policy, acquiredLocks.get(i));
+      for (LockGraphNode acquiredLock : acquiredLocks) {
+        checkAcquiredLock(policy, acquiredLock);
       }
     }
 
@@ -674,7 +678,7 @@ public class CycleDetectingLockFactory {
      * @return If a path was found, a chained {@link ExampleStackTrace} illustrating the path to the
      *     {@code lock}, or {@code null} if no path was found.
      */
-    @NullableDecl
+    @CheckForNull
     private ExampleStackTrace findPathTo(LockGraphNode node, Set<LockGraphNode> seen) {
       if (!seen.add(this)) {
         return null; // Already traversed this node.
@@ -706,7 +710,8 @@ public class CycleDetectingLockFactory {
    */
   private void aboutToAcquire(CycleDetectingLock lock) {
     if (!lock.isAcquiredByCurrentThread()) {
-      ArrayList<LockGraphNode> acquiredLockList = acquiredLocks.get();
+      // requireNonNull accommodates Android's @RecentlyNullable annotation on ThreadLocal.get
+      ArrayList<LockGraphNode> acquiredLockList = requireNonNull(acquiredLocks.get());
       LockGraphNode node = lock.getLockGraphNode();
       node.checkAcquiredLocks(policy, acquiredLockList);
       acquiredLockList.add(node);
@@ -720,7 +725,8 @@ public class CycleDetectingLockFactory {
    */
   private static void lockStateChanged(CycleDetectingLock lock) {
     if (!lock.isAcquiredByCurrentThread()) {
-      ArrayList<LockGraphNode> acquiredLockList = acquiredLocks.get();
+      // requireNonNull accommodates Android's @RecentlyNullable annotation on ThreadLocal.get
+      ArrayList<LockGraphNode> acquiredLockList = requireNonNull(acquiredLocks.get());
       LockGraphNode node = lock.getLockGraphNode();
       // Iterate in reverse because locks are usually locked/unlocked in a
       // LIFO order.

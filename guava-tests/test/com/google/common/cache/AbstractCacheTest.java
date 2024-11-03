@@ -16,6 +16,8 @@
 
 package com.google.common.cache;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import com.google.common.cache.AbstractCache.SimpleStatsCounter;
 import com.google.common.cache.AbstractCache.StatsCounter;
 import com.google.common.collect.ImmutableList;
@@ -24,6 +26,7 @@ import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import junit.framework.TestCase;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Unit test for {@link AbstractCache}.
@@ -37,7 +40,7 @@ public class AbstractCacheTest extends TestCase {
     Cache<Object, Object> cache =
         new AbstractCache<Object, Object>() {
           @Override
-          public Object getIfPresent(Object key) {
+          public @Nullable Object getIfPresent(Object key) {
             return valueRef.get();
           }
         };
@@ -53,7 +56,7 @@ public class AbstractCacheTest extends TestCase {
     Cache<Object, Object> cache =
         new AbstractCache<Object, Object>() {
           @Override
-          public Object getIfPresent(Object key) {
+          public @Nullable Object getIfPresent(Object key) {
             return null;
           }
         };
@@ -67,7 +70,7 @@ public class AbstractCacheTest extends TestCase {
     Cache<Object, Object> cache =
         new AbstractCache<Object, Object>() {
           @Override
-          public Object getIfPresent(Object key) {
+          public @Nullable Object getIfPresent(Object key) {
             return cachedKey.equals(key) ? cachedValue : null;
           }
         };
@@ -102,14 +105,14 @@ public class AbstractCacheTest extends TestCase {
     CacheStats stats = counter.snapshot();
     assertEquals(0, stats.requestCount());
     assertEquals(0, stats.hitCount());
-    assertEquals(1.0, stats.hitRate());
+    assertThat(stats.hitRate()).isEqualTo(1.0);
     assertEquals(0, stats.missCount());
-    assertEquals(0.0, stats.missRate());
+    assertThat(stats.missRate()).isEqualTo(0.0);
     assertEquals(0, stats.loadSuccessCount());
     assertEquals(0, stats.loadExceptionCount());
     assertEquals(0, stats.loadCount());
     assertEquals(0, stats.totalLoadTime());
-    assertEquals(0.0, stats.averageLoadPenalty());
+    assertThat(stats.averageLoadPenalty()).isEqualTo(0.0);
     assertEquals(0, stats.evictionCount());
   }
 
@@ -134,16 +137,24 @@ public class AbstractCacheTest extends TestCase {
     int requestCount = 11 + 23;
     assertEquals(requestCount, stats.requestCount());
     assertEquals(11, stats.hitCount());
-    assertEquals(11.0 / requestCount, stats.hitRate());
+    assertThat(stats.hitRate()).isEqualTo(11.0 / requestCount);
     int missCount = 23;
     assertEquals(missCount, stats.missCount());
-    assertEquals(((double) missCount) / requestCount, stats.missRate());
+    assertThat(stats.missRate()).isEqualTo(((double) missCount) / requestCount);
     assertEquals(13, stats.loadSuccessCount());
     assertEquals(17, stats.loadExceptionCount());
     assertEquals(13 + 17, stats.loadCount());
     assertEquals(214, stats.totalLoadTime());
-    assertEquals(214.0 / (13 + 17), stats.averageLoadPenalty());
+    assertThat(stats.averageLoadPenalty()).isEqualTo(214.0 / (13 + 17));
     assertEquals(27, stats.evictionCount());
+  }
+
+  public void testSimpleStatsOverflow() {
+    StatsCounter counter = new SimpleStatsCounter();
+    counter.recordLoadSuccess(Long.MAX_VALUE);
+    counter.recordLoadSuccess(1);
+    CacheStats stats = counter.snapshot();
+    assertEquals(Long.MAX_VALUE, stats.totalLoadTime());
   }
 
   public void testSimpleStatsIncrementBy() {

@@ -16,11 +16,12 @@
 
 package com.google.common.hash;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.google.common.base.Charsets;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.SerializableTester;
 import java.io.OutputStream;
@@ -93,7 +94,7 @@ public class FunnelsTest extends TestCase {
   }
 
   public void testSequential() {
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "DoNotMock"})
     Funnel<Object> elementFunnel = mock(Funnel.class);
     PrimitiveSink primitiveSink = mock(PrimitiveSink.class);
     Funnel<Iterable<?>> sequential = Funnels.sequentialFunnel(elementFunnel);
@@ -151,8 +152,8 @@ public class FunnelsTest extends TestCase {
         Funnels.sequentialFunnel(Funnels.integerFunnel()),
         SerializableTester.reserialize(Funnels.sequentialFunnel(Funnels.integerFunnel())));
     assertEquals(
-        Funnels.stringFunnel(Charsets.US_ASCII),
-        SerializableTester.reserialize(Funnels.stringFunnel(Charsets.US_ASCII)));
+        Funnels.stringFunnel(US_ASCII),
+        SerializableTester.reserialize(Funnels.stringFunnel(US_ASCII)));
   }
 
   public void testEquals() {
@@ -161,8 +162,8 @@ public class FunnelsTest extends TestCase {
         .addEqualityGroup(Funnels.integerFunnel())
         .addEqualityGroup(Funnels.longFunnel())
         .addEqualityGroup(Funnels.unencodedCharsFunnel())
-        .addEqualityGroup(Funnels.stringFunnel(Charsets.UTF_8))
-        .addEqualityGroup(Funnels.stringFunnel(Charsets.US_ASCII))
+        .addEqualityGroup(Funnels.stringFunnel(UTF_8))
+        .addEqualityGroup(Funnels.stringFunnel(US_ASCII))
         .addEqualityGroup(
             Funnels.sequentialFunnel(Funnels.integerFunnel()),
             SerializableTester.reserialize(Funnels.sequentialFunnel(Funnels.integerFunnel())))

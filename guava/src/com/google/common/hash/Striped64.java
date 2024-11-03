@@ -12,8 +12,14 @@
 package com.google.common.hash;
 
 import com.google.common.annotations.GwtIncompatible;
+import java.lang.reflect.Field;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Random;
+import javax.annotation.CheckForNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import sun.misc.Unsafe;
 
 /**
  * A package-local class holding common representation and mechanics for classes supporting dynamic
@@ -21,6 +27,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * so.
  */
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
+@SuppressWarnings({"SunApi", "removal"}) // b/345822163
 abstract class Striped64 extends Number {
   /*
    * This class maintains a lazily-initialized table of atomically
@@ -106,7 +114,7 @@ abstract class Striped64 extends Number {
     }
 
     // Unsafe mechanics
-    private static final sun.misc.Unsafe UNSAFE;
+    private static final Unsafe UNSAFE;
     private static final long valueOffset;
 
     static {
@@ -125,7 +133,7 @@ abstract class Striped64 extends Number {
    * class, we use a suboptimal int[] representation to avoid introducing a new type that can impede
    * class-unloading when ThreadLocals are not removed.
    */
-  static final ThreadLocal<int[]> threadHashCode = new ThreadLocal<>();
+  static final ThreadLocal<int @Nullable []> threadHashCode = new ThreadLocal<>();
 
   /** Generator of new random hash codes */
   static final Random rng = new Random();
@@ -134,7 +142,7 @@ abstract class Striped64 extends Number {
   static final int NCPU = Runtime.getRuntime().availableProcessors();
 
   /** Table of cells. When non-null, size is a power of 2. */
-  transient volatile Cell @Nullable [] cells;
+  @CheckForNull transient volatile Cell[] cells;
 
   /**
    * Base value, used mainly when there is no contention, but also as a fallback during table
@@ -177,7 +185,7 @@ abstract class Striped64 extends Number {
    * @param hc the hash code holder
    * @param wasUncontended false if CAS failed before call
    */
-  final void retryUpdate(long x, int @Nullable [] hc, boolean wasUncontended) {
+  final void retryUpdate(long x, @CheckForNull int[] hc, boolean wasUncontended) {
     int h;
     if (hc == null) {
       threadHashCode.set(hc = new int[1]); // Initialize randomly
@@ -264,7 +272,7 @@ abstract class Striped64 extends Number {
   }
 
   // Unsafe mechanics
-  private static final sun.misc.Unsafe UNSAFE;
+  private static final Unsafe UNSAFE;
   private static final long baseOffset;
   private static final long busyOffset;
 
@@ -285,17 +293,18 @@ abstract class Striped64 extends Number {
    *
    * @return a sun.misc.Unsafe
    */
-  private static sun.misc.Unsafe getUnsafe() {
+  private static Unsafe getUnsafe() {
     try {
-      return sun.misc.Unsafe.getUnsafe();
+      return Unsafe.getUnsafe();
     } catch (SecurityException tryReflectionInstead) {
     }
     try {
-      return java.security.AccessController.doPrivileged(
-          new java.security.PrivilegedExceptionAction<sun.misc.Unsafe>() {
-            public sun.misc.Unsafe run() throws Exception {
-              Class<sun.misc.Unsafe> k = sun.misc.Unsafe.class;
-              for (java.lang.reflect.Field f : k.getDeclaredFields()) {
+      return AccessController.doPrivileged(
+          new PrivilegedExceptionAction<Unsafe>() {
+            @Override
+            public Unsafe run() throws Exception {
+              Class<Unsafe> k = Unsafe.class;
+              for (Field f : k.getDeclaredFields()) {
                 f.setAccessible(true);
                 Object x = f.get(null);
                 if (k.isInstance(x)) return k.cast(x);
@@ -303,7 +312,7 @@ abstract class Striped64 extends Number {
               throw new NoSuchFieldError("the Unsafe");
             }
           });
-    } catch (java.security.PrivilegedActionException e) {
+    } catch (PrivilegedActionException e) {
       throw new RuntimeException("Could not initialize intrinsics", e.getCause());
     }
   }

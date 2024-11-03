@@ -21,7 +21,7 @@ import java.util.ServiceConfigurationError;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
-import org.checkerframework.checker.nullness.qual.Nullable;
+import javax.annotation.CheckForNull;
 
 /**
  * Methods factored out so that they can be emulated differently in GWT.
@@ -29,17 +29,12 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * @author Jesse Wilson
  */
 @GwtCompatible(emulated = true)
+@ElementTypesAreNonnullByDefault
 final class Platform {
   private static final Logger logger = Logger.getLogger(Platform.class.getName());
   private static final PatternCompiler patternCompiler = loadPatternCompiler();
 
   private Platform() {}
-
-  /** Calls {@link System#nanoTime()}. */
-  @SuppressWarnings("GoodTime") // reading system time without TimeSource
-  static long systemNanoTime() {
-    return System.nanoTime();
-  }
 
   static CharMatcher precomputeCharMatcher(CharMatcher matcher) {
     return matcher.precomputedInternal();
@@ -47,22 +42,45 @@ final class Platform {
 
   static <T extends Enum<T>> Optional<T> getEnumIfPresent(Class<T> enumClass, String value) {
     WeakReference<? extends Enum<?>> ref = Enums.getEnumConstants(enumClass).get(value);
-    return ref == null ? Optional.<T>absent() : Optional.of(enumClass.cast(ref.get()));
+    /*
+     * We use `fromNullable` instead of `of` because `WeakReference.get()` has a nullable return
+     * type.
+     *
+     * In practice, we are very unlikely to see `null`: The `WeakReference` to the enum constant
+     * won't be cleared as long as the enum constant is referenced somewhere, and the enum constant
+     * is referenced somewhere for as long as the enum class is loaded. *Maybe in theory* the enum
+     * class could be unloaded after the above call to `getEnumConstants` but before we call
+     * `get()`, but that is vanishingly unlikely.
+     */
+    return ref == null ? Optional.absent() : Optional.fromNullable(enumClass.cast(ref.get()));
   }
 
   static String formatCompact4Digits(double value) {
     return String.format(Locale.ROOT, "%.4g", value);
   }
 
-  static boolean stringIsNullOrEmpty(@Nullable String string) {
+  static boolean stringIsNullOrEmpty(@CheckForNull String string) {
     return string == null || string.isEmpty();
   }
 
-  static String nullToEmpty(@Nullable String string) {
+  /**
+   * Returns the string if it is not null, or an empty string otherwise.
+   *
+   * @param string the string to test and possibly return
+   * @return {@code string} if it is not null; {@code ""} otherwise
+   */
+  static String nullToEmpty(@CheckForNull String string) {
     return (string == null) ? "" : string;
   }
 
-  static String emptyToNull(@Nullable String string) {
+  /**
+   * Returns the string if it is not empty, or a null string otherwise.
+   *
+   * @param string the string to test and possibly return
+   * @return {@code string} if it is not empty; {@code null} otherwise
+   */
+  @CheckForNull
+  static String emptyToNull(@CheckForNull String string) {
     return stringIsNullOrEmpty(string) ? null : string;
   }
 

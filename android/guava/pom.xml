@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <!-- do_not_remove: published-with-gradle-metadata -->
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>com.google.guava</groupId>
@@ -10,16 +11,17 @@
   <artifactId>guava</artifactId>
   <packaging>bundle</packaging>
   <name>Guava: Google Core Libraries for Java</name>
+  <url>https://github.com/google/guava</url>
   <description>
     Guava is a suite of core and expanded libraries that include
-    utility classes, google's collections, io classes, and much
+    utility classes, Google's collections, I/O classes, and
     much more.
   </description>
   <dependencies>
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>failureaccess</artifactId>
-      <version>1.0.1</version>
+      <version>1.0.2</version>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>
@@ -32,7 +34,7 @@
     </dependency>
     <dependency>
       <groupId>org.checkerframework</groupId>
-      <artifactId>checker-compat-qual</artifactId>
+      <artifactId>checker-qual</artifactId>
     </dependency>
     <dependency>
       <groupId>com.google.errorprone</groupId>
@@ -42,16 +44,26 @@
       <groupId>com.google.j2objc</groupId>
       <artifactId>j2objc-annotations</artifactId>
     </dependency>
-    <dependency>
-      <groupId>org.codehaus.mojo</groupId>
-      <artifactId>animal-sniffer-annotations</artifactId>
-      <version>${animal.sniffer.version}</version>
-    </dependency>
-    <!-- TODO(cpovirk): does this comment belong on the <dependency> in <profiles>? -->
-    <!-- TODO(cpovirk): want this only for dependency plugin but seems not to work there? Maven runs without failure, but the resulting Javadoc is missing the hoped-for inherited text -->
   </dependencies>
   <build>
+    <resources>
+      <resource>
+        <directory>..</directory>
+        <includes>
+          <include>LICENSE</include> <!-- copied from the parent pom because I couldn't figure out a way to make combine.children="append" work -->
+          <include>proguard/*</include>
+        </includes>
+        <targetPath>META-INF</targetPath>
+      </resource>
+    </resources>
     <plugins>
+      <plugin>
+        <groupId>org.mvnsearch</groupId>
+        <artifactId>toolchains-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <artifactId>maven-toolchains-plugin</artifactId>
+      </plugin>
       <plugin>
         <artifactId>maven-jar-plugin</artifactId>
         <configuration>
@@ -66,7 +78,7 @@
         <extensions>true</extensions>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
-        <version>2.5.0</version>
+        <version>5.1.8</version>
         <executions>
           <execution>
             <id>bundle-manifest</id>
@@ -99,22 +111,6 @@
       <plugin>
         <artifactId>maven-source-plugin</artifactId>
       </plugin>
-      <!-- TODO(cpovirk): include JDK sources when building testlib doc, too -->
-      <plugin>
-        <artifactId>maven-dependency-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>unpack-jdk-sources</id>
-            <phase>generate-sources</phase>
-            <goals><goal>unpack-dependencies</goal></goals>
-            <configuration>
-              <includeArtifactIds>srczip</includeArtifactIds>
-              <outputDirectory>${project.build.directory}/jdk-sources</outputDirectory>
-              <silent>false</silent>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
@@ -122,13 +118,39 @@
       <plugin>
         <artifactId>maven-javadoc-plugin</artifactId>
         <configuration>
-          <!-- TODO(cpovirk): Move this to the parent after making jdk-sources available there. -->
-          <!-- TODO(cpovirk): can we use includeDependencySources and a local com.oracle.java:jdk-lib:noversion:sources instead of all this unzipping and manual sourcepath modification? -->
-          <!-- (We need JDK *sources*, not just -link, so that {@inheritDoc} works.) -->
-          <sourcepath>${project.build.sourceDirectory}:${project.build.directory}/jdk-sources</sourcepath>
-
-          <subpackages>com.google.common</subpackages>
-          <excludePackageNames>com.google.common.base.internal</excludePackageNames>
+          <!-- Passing `-subpackages com.google.common` breaks things, so we explicitly exclude everything else instead. -->
+          <!-- excludePackageNames requires specification of packages separately from "all subpackages".
+               https://issues.apache.org/jira/browse/MJAVADOC-584 -->
+          <excludePackageNames>
+            com.azul.tooling.in,com.google.common.base.internal,com.google.common.base.internal.*,com.google.thirdparty.publicsuffix,com.google.thirdparty.publicsuffix.*,com.oracle.*,com.sun.*,java.*,javax.*,jdk,jdk.*,org.*,sun.*
+          </excludePackageNames>
+          <!-- Ignore some tags that are found in Java 11 sources but not recognized... under -source 8, I think it was? I can no longer reproduce the failure. -->
+          <tags>
+            <tag>
+              <name>apiNote</name>
+              <placement>X</placement>
+            </tag>
+            <tag>
+              <name>implNote</name>
+              <placement>X</placement>
+            </tag>
+            <tag>
+              <name>implSpec</name>
+              <placement>X</placement>
+            </tag>
+            <tag>
+              <name>jls</name>
+              <placement>X</placement>
+            </tag>
+            <tag>
+              <name>revised</name>
+              <placement>X</placement>
+            </tag>
+            <tag>
+              <name>spec</name>
+              <placement>X</placement>
+            </tag>
+          </tags>
 
           <!-- TODO(cpovirk): Move this to the parent after making the package-list files available there. -->
           <!-- We add the link ourselves, both so that we can choose Java 9 over the version that -source suggests and so that we can solve the JSR305 problem described below. -->
@@ -158,38 +180,53 @@
           <links>
             <link>https://errorprone.info/api/latest/</link>
           </links>
+          <overview>../../overview.html</overview>
         </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-resources-plugin</artifactId>
         <executions>
           <execution>
-            <id>attach-docs</id>
+            <id>gradle-module-metadata</id>
+            <phase>compile</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>target/publish</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>../../guava</directory>
+                  <includes>
+                    <include>module.json</include>
+                  </includes>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+            </configuration>
           </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
           <execution>
-            <id>generate-javadoc-site-report</id>
-            <phase>site</phase>
-            <goals><goal>javadoc</goal></goals>
+            <id>attach-gradle-module-metadata</id>
+            <goals>
+              <goal>attach-artifact</goal>
+            </goals>
+            <configuration>
+              <artifacts>
+                <artifact>
+                  <file>target/publish/module.json</file>
+                  <type>module</type>
+                </artifact>
+              </artifacts>
+            </configuration>
           </execution>
         </executions>
       </plugin>
     </plugins>
   </build>
-  <profiles>
-    <profile>
-      <id>srczip</id>
-      <activation>
-        <file>
-          <exists>${java.home}/../src.zip</exists>
-        </file>
-      </activation>
-      <dependencies>
-        <dependency>
-          <groupId>jdk</groupId>
-          <artifactId>srczip</artifactId>
-          <version>999</version>
-          <scope>system</scope>
-          <systemPath>${java.home}/../src.zip</systemPath>
-          <optional>true</optional>
-        </dependency>
-      </dependencies>
-    </profile>
-  </profiles>
 </project>

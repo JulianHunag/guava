@@ -29,6 +29,7 @@ import com.google.common.collect.testing.google.TestStringBiMapGenerator;
 import java.util.Map.Entry;
 import java.util.Set;
 import junit.framework.TestSuite;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Tests for {@code Synchronized#biMap}.
@@ -78,7 +79,6 @@ public class SynchronizedBiMapTest extends SynchronizedMapTest {
   public static final class SynchronizedHashBiMapGenerator extends TestStringBiMapGenerator {
     @Override
     protected BiMap<String, String> create(Entry<String, String>[] entries) {
-      Object mutex = new Object();
       BiMap<String, String> result = HashBiMap.create();
       for (Entry<String, String> entry : entries) {
         checkArgument(!result.containsKey(entry.getKey()));
@@ -111,7 +111,7 @@ public class SynchronizedBiMapTest extends SynchronizedMapTest {
     }
 
     @Override
-    public V forcePut(K key, V value) {
+    public @Nullable V forcePut(K key, V value) {
       assertTrue(Thread.holdsLock(mutex));
       return delegate.forcePut(key, value);
     }

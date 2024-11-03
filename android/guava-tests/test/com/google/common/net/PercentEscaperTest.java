@@ -19,6 +19,7 @@ package com.google.common.net;
 import static com.google.common.escape.testing.EscaperAsserts.assertEscaping;
 import static com.google.common.escape.testing.EscaperAsserts.assertUnescaped;
 import static com.google.common.escape.testing.EscaperAsserts.assertUnicodeEscaping;
+import static com.google.common.net.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.annotations.GwtCompatible;
@@ -45,7 +46,7 @@ public class PercentEscaperTest extends TestCase {
       }
     }
 
-    // Testing mutlibyte escape sequences
+    // Testing multibyte escape sequences
     assertEscaping(e, "%00", '\u0000'); // nul
     assertEscaping(e, "%7F", '\u007f'); // del
     assertEscaping(e, "%C2%80", '\u0080'); // xx-00010,x-000000
@@ -97,12 +98,7 @@ public class PercentEscaperTest extends TestCase {
 
   /** Test that giving a null 'safeChars' string causes a {@link NullPointerException}. */
   public void testBadArguments_null() {
-    try {
-      new PercentEscaper(null, false);
-      fail("Expected null pointer exception for null parameter");
-    } catch (NullPointerException expected) {
-      // pass
-    }
+    assertThrows(NullPointerException.class, () -> new PercentEscaper(null, false));
   }
 
   /**
@@ -112,31 +108,20 @@ public class PercentEscaperTest extends TestCase {
   public void testBadArguments_badchars() {
     String msg =
         "Alphanumeric characters are always 'safe' " + "and should not be explicitly specified";
-    try {
-      new PercentEscaper("-+#abc.!", false);
-      fail(msg);
-    } catch (IllegalArgumentException expected) {
-      assertThat(expected).hasMessageThat().isEqualTo(msg);
-    }
+    IllegalArgumentException expected =
+        assertThrows(IllegalArgumentException.class, () -> new PercentEscaper("-+#abc.!", false));
+    assertThat(expected).hasMessageThat().isEqualTo(msg);
   }
 
-  /**
-   * Tests that if space is a safe character you cannot also specify 'plusForSpace' (throws {@link
-   * IllegalArgumentException}).
-   */
   public void testBadArguments_plusforspace() {
-    try {
-      new PercentEscaper(" ", false);
-    } catch (IllegalArgumentException e) {
-      fail("Space can be a 'safe' character if plusForSpace is false");
-    }
+    // space can be a safe char if plusForSpace is false
+    PercentEscaper unused = new PercentEscaper(" ", false);
+
+    // space cannot be a safe char is plusForSpace is true
     String msg = "plusForSpace cannot be specified when space is a 'safe' character";
-    try {
-      new PercentEscaper(" ", true);
-      fail(msg);
-    } catch (IllegalArgumentException expected) {
-      assertThat(expected).hasMessageThat().isEqualTo(msg);
-    }
+    IllegalArgumentException expected =
+        assertThrows(IllegalArgumentException.class, () -> new PercentEscaper(" ", true));
+    assertThat(expected).hasMessageThat().isEqualTo(msg);
   }
 
   /** Helper to manually escape a 7-bit ascii character */

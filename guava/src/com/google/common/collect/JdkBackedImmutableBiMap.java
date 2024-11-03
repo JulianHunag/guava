@@ -15,12 +15,17 @@
  */
 package com.google.common.collect;
 
+import static com.google.common.collect.Maps.immutableEntry;
+import static java.util.Objects.requireNonNull;
+
 import com.google.common.annotations.GwtCompatible;
-import com.google.common.annotations.VisibleForTesting;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.errorprone.annotations.concurrent.LazyInit;
 import com.google.j2objc.annotations.RetainedWith;
 import com.google.j2objc.annotations.WeakOuter;
 import java.util.Map;
+import javax.annotation.CheckForNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -28,13 +33,14 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * protecting against hash flooding.
  */
 @GwtCompatible(emulated = true)
+@ElementTypesAreNonnullByDefault
 final class JdkBackedImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
-  @VisibleForTesting
-  static <K, V> ImmutableBiMap<K, V> create(int n, Entry<K, V>[] entryArray) {
+  static <K, V> ImmutableBiMap<K, V> create(int n, @Nullable Entry<K, V>[] entryArray) {
     Map<K, V> forwardDelegate = Maps.newHashMapWithExpectedSize(n);
     Map<V, K> backwardDelegate = Maps.newHashMapWithExpectedSize(n);
     for (int i = 0; i < n; i++) {
-      Entry<K, V> e = RegularImmutableMap.makeImmutable(entryArray[i]);
+      // requireNonNull is safe because the first `n` elements have been filled in.
+      Entry<K, V> e = RegularImmutableMap.makeImmutable(requireNonNull(entryArray[i]));
       entryArray[i] = e;
       V oldValue = forwardDelegate.putIfAbsent(e.getKey(), e.getValue());
       if (oldValue != null) {
@@ -65,7 +71,7 @@ final class JdkBackedImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
     return entries.size();
   }
 
-  @LazyInit @RetainedWith private transient JdkBackedImmutableBiMap<V, K> inverse;
+  @LazyInit @RetainedWith @CheckForNull private transient JdkBackedImmutableBiMap<V, K> inverse;
 
   @Override
   public ImmutableBiMap<V, K> inverse() {
@@ -73,7 +79,7 @@ final class JdkBackedImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
     if (result == null) {
       inverse =
           result =
-              new JdkBackedImmutableBiMap<V, K>(
+              new JdkBackedImmutableBiMap<>(
                   new InverseEntries(), backwardDelegate, forwardDelegate);
       result.inverse = this;
     }
@@ -85,7 +91,7 @@ final class JdkBackedImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
     @Override
     public Entry<V, K> get(int index) {
       Entry<K, V> entry = entries.get(index);
-      return Maps.immutableEntry(entry.getValue(), entry.getKey());
+      return immutableEntry(entry.getValue(), entry.getKey());
     }
 
     @Override
@@ -97,25 +103,44 @@ final class JdkBackedImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
     public int size() {
       return entries.size();
     }
+
+    // redeclare to help optimizers with b/310253115
+    @SuppressWarnings("RedundantOverride")
+    @Override
+    @J2ktIncompatible // serialization
+    @GwtIncompatible // serialization
+    Object writeReplace() {
+      return super.writeReplace();
+    }
   }
 
   @Override
-  public V get(@Nullable Object key) {
+  @CheckForNull
+  public V get(@CheckForNull Object key) {
     return forwardDelegate.get(key);
   }
 
   @Override
   ImmutableSet<Entry<K, V>> createEntrySet() {
-    return new ImmutableMapEntrySet.RegularEntrySet<K, V>(this, entries);
+    return new ImmutableMapEntrySet.RegularEntrySet<>(this, entries);
   }
 
   @Override
   ImmutableSet<K> createKeySet() {
-    return new ImmutableMapKeySet<K, V>(this);
+    return new ImmutableMapKeySet<>(this);
   }
 
   @Override
   boolean isPartialView() {
     return false;
+  }
+
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
+  @Override
+  @J2ktIncompatible // serialization
+  @GwtIncompatible // serialization
+  Object writeReplace() {
+    return super.writeReplace();
   }
 }

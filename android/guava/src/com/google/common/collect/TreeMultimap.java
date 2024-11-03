@@ -17,9 +17,11 @@
 package com.google.common.collect;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -31,7 +33,7 @@ import java.util.NavigableSet;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Implementation of {@code Multimap} whose keys and values are ordered by their natural ordering or
@@ -41,7 +43,7 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  *
  * <p><b>Warning:</b> The comparators or comparables used must be <i>consistent with equals</i> as
  * explained by the {@link Comparable} class specification. Otherwise, the resulting multiset will
- * violate the general contract of {@link SetMultimap}, which it is specified in terms of {@link
+ * violate the general contract of {@link SetMultimap}, which is specified in terms of {@link
  * Object#equals}.
  *
  * <p>The collections returned by {@code keySet} and {@code asMap} iterate through the keys
@@ -64,21 +66,23 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * with a call to {@link Multimaps#synchronizedSortedSetMultimap}.
  *
  * <p>See the Guava User Guide article on <a href=
- * "https://github.com/google/guava/wiki/NewCollectionTypesExplained#multimap"> {@code
- * Multimap}</a>.
+ * "https://github.com/google/guava/wiki/NewCollectionTypesExplained#multimap">{@code Multimap}</a>.
  *
  * @author Jared Levy
  * @author Louis Wasserman
  * @since 2.0
  */
 @GwtCompatible(serializable = true, emulated = true)
-public class TreeMultimap<K, V> extends AbstractSortedKeySortedSetMultimap<K, V> {
+@ElementTypesAreNonnullByDefault
+public class TreeMultimap<K extends @Nullable Object, V extends @Nullable Object>
+    extends AbstractSortedKeySortedSetMultimap<K, V> {
   private transient Comparator<? super K> keyComparator;
   private transient Comparator<? super V> valueComparator;
 
   /**
    * Creates an empty {@code TreeMultimap} ordered by the natural ordering of its keys and values.
    */
+  @SuppressWarnings("rawtypes") // https://github.com/google/guava/issues/989
   public static <K extends Comparable, V extends Comparable> TreeMultimap<K, V> create() {
     return new TreeMultimap<>(Ordering.natural(), Ordering.natural());
   }
@@ -90,7 +94,7 @@ public class TreeMultimap<K, V> extends AbstractSortedKeySortedSetMultimap<K, V>
    * @param keyComparator the comparator that determines the key ordering
    * @param valueComparator the comparator that determines the value ordering
    */
-  public static <K, V> TreeMultimap<K, V> create(
+  public static <K extends @Nullable Object, V extends @Nullable Object> TreeMultimap<K, V> create(
       Comparator<? super K> keyComparator, Comparator<? super V> valueComparator) {
     return new TreeMultimap<>(checkNotNull(keyComparator), checkNotNull(valueComparator));
   }
@@ -101,6 +105,7 @@ public class TreeMultimap<K, V> extends AbstractSortedKeySortedSetMultimap<K, V>
    *
    * @param multimap the multimap whose contents are copied to this multimap
    */
+  @SuppressWarnings("rawtypes") // https://github.com/google/guava/issues/989
   public static <K extends Comparable, V extends Comparable> TreeMultimap<K, V> create(
       Multimap<? extends K, ? extends V> multimap) {
     return new TreeMultimap<>(Ordering.natural(), Ordering.natural(), multimap);
@@ -134,13 +139,13 @@ public class TreeMultimap<K, V> extends AbstractSortedKeySortedSetMultimap<K, V>
    */
   @Override
   SortedSet<V> createCollection() {
-    return new TreeSet<V>(valueComparator);
+    return new TreeSet<>(valueComparator);
   }
 
   @Override
-  Collection<V> createCollection(@NullableDecl K key) {
+  Collection<V> createCollection(@ParametricNullness K key) {
     if (key == null) {
-      keyComparator().compare(key, key);
+      int unused = keyComparator().compare(key, key);
     }
     return super.createCollection(key);
   }
@@ -163,7 +168,7 @@ public class TreeMultimap<K, V> extends AbstractSortedKeySortedSetMultimap<K, V>
   /** @since 14.0 (present with return type {@code SortedSet} since 2.0) */
   @Override
   @GwtIncompatible // NavigableSet
-  public NavigableSet<V> get(@NullableDecl K key) {
+  public NavigableSet<V> get(@ParametricNullness K key) {
     return (NavigableSet<V>) super.get(key);
   }
 
@@ -200,6 +205,7 @@ public class TreeMultimap<K, V> extends AbstractSortedKeySortedSetMultimap<K, V>
    *     distinct key: the key, number of values for that key, and key values
    */
   @GwtIncompatible // java.io.ObjectOutputStream
+  @J2ktIncompatible
   private void writeObject(ObjectOutputStream stream) throws IOException {
     stream.defaultWriteObject();
     stream.writeObject(keyComparator());
@@ -208,15 +214,17 @@ public class TreeMultimap<K, V> extends AbstractSortedKeySortedSetMultimap<K, V>
   }
 
   @GwtIncompatible // java.io.ObjectInputStream
+  @J2ktIncompatible
   @SuppressWarnings("unchecked") // reading data stored by writeObject
   private void readObject(ObjectInputStream stream) throws IOException, ClassNotFoundException {
     stream.defaultReadObject();
-    keyComparator = checkNotNull((Comparator<? super K>) stream.readObject());
-    valueComparator = checkNotNull((Comparator<? super V>) stream.readObject());
+    keyComparator = requireNonNull((Comparator<? super K>) stream.readObject());
+    valueComparator = requireNonNull((Comparator<? super V>) stream.readObject());
     setMap(new TreeMap<K, Collection<V>>(keyComparator));
     Serialization.populateMultimap(this, stream);
   }
 
   @GwtIncompatible // not needed in emulated source
+  @J2ktIncompatible
   private static final long serialVersionUID = 0;
 }

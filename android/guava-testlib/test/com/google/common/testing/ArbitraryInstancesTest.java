@@ -17,9 +17,11 @@
 package com.google.common.testing;
 
 import static com.google.common.truth.Truth.assertThat;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.base.CharMatcher;
-import com.google.common.base.Charsets;
 import com.google.common.base.Equivalence;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
@@ -109,6 +111,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentMap;
@@ -126,6 +129,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import junit.framework.TestCase;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Unit test for {@link ArbitraryInstances}.
@@ -151,18 +155,19 @@ public class ArbitraryInstancesTest extends TestCase {
     assertEquals(Long.valueOf(0), ArbitraryInstances.get(Long.class));
     assertEquals(Float.valueOf(0), ArbitraryInstances.get(float.class));
     assertEquals(Float.valueOf(0), ArbitraryInstances.get(Float.class));
-    assertEquals(Double.valueOf(0), ArbitraryInstances.get(double.class));
-    assertEquals(Double.valueOf(0), ArbitraryInstances.get(Double.class));
+    assertThat(ArbitraryInstances.get(double.class)).isEqualTo(Double.valueOf(0));
+    assertThat(ArbitraryInstances.get(Double.class)).isEqualTo(Double.valueOf(0));
     assertEquals(UnsignedInteger.ZERO, ArbitraryInstances.get(UnsignedInteger.class));
     assertEquals(UnsignedLong.ZERO, ArbitraryInstances.get(UnsignedLong.class));
     assertEquals(0, ArbitraryInstances.get(BigDecimal.class).intValue());
     assertEquals(0, ArbitraryInstances.get(BigInteger.class).intValue());
     assertEquals("", ArbitraryInstances.get(String.class));
     assertEquals("", ArbitraryInstances.get(CharSequence.class));
-    assertEquals(TimeUnit.SECONDS, ArbitraryInstances.get(TimeUnit.class));
+    assertEquals(SECONDS, ArbitraryInstances.get(TimeUnit.class));
     assertNotNull(ArbitraryInstances.get(Object.class));
     assertEquals(0, ArbitraryInstances.get(Number.class));
-    assertEquals(Charsets.UTF_8, ArbitraryInstances.get(Charset.class));
+    assertEquals(UTF_8, ArbitraryInstances.get(Charset.class));
+    assertNotNull(ArbitraryInstances.get(UUID.class));
   }
 
   public void testGet_collections() {
@@ -275,11 +280,7 @@ public class ArbitraryInstancesTest extends TestCase {
     Comparable<Object> comparable = ArbitraryInstances.get(Comparable.class);
     assertEquals(0, comparable.compareTo(comparable));
     assertTrue(comparable.compareTo("") > 0);
-    try {
-      comparable.compareTo(null);
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> comparable.compareTo(null));
   }
 
   public void testGet_array() {
@@ -471,7 +472,7 @@ public class ArbitraryInstancesTest extends TestCase {
   }
 
   public static class WithNullConstant {
-    public static final WithNullConstant NULL = null;
+    public static final @Nullable WithNullConstant NULL = null;
 
     private WithNullConstant() {}
   }
@@ -494,7 +495,7 @@ public class ArbitraryInstancesTest extends TestCase {
   private static class FirstConstantIsNull {
     // To test that null constant is ignored
     @SuppressWarnings("unused")
-    public static final FirstConstantIsNull FIRST = null;
+    public static final @Nullable FirstConstantIsNull FIRST = null;
 
     public static final FirstConstantIsNull SECOND = new FirstConstantIsNull();
   }

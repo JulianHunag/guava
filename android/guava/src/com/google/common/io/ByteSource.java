@@ -18,9 +18,10 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.io.ByteStreams.createBuffer;
 import static com.google.common.io.ByteStreams.skipUpTo;
+import static java.lang.Math.min;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Ascii;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
@@ -40,6 +41,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * A readable source of bytes, such as a file. Unlike an {@link InputStream}, a {@code ByteSource}
@@ -57,10 +59,24 @@ import java.util.Iterator;
  *       doing something and finally closing the stream that was opened.
  * </ul>
  *
+ * <p><b>Note:</b> In general, {@code ByteSource} is intended to be used for "file-like" sources
+ * that provide streams that are:
+ *
+ * <ul>
+ *   <li><b>Finite:</b> Many operations, such as {@link #size()} and {@link #read()}, will either
+ *       block indefinitely or fail if the source creates an infinite stream.
+ *   <li><b>Non-destructive:</b> A <i>destructive</i> stream will consume or otherwise alter the
+ *       bytes of the source as they are read from it. A source that provides such streams will not
+ *       be reusable, and operations that read from the stream (including {@link #size()}, in some
+ *       implementations) will prevent further operations from completing as expected.
+ * </ul>
+ *
  * @since 14.0
  * @author Colin Decker
  */
+@J2ktIncompatible
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 public abstract class ByteSource {
 
   /** Constructor for use by subclasses. */
@@ -164,7 +180,6 @@ public abstract class ByteSource {
    *
    * @since 19.0
    */
-  @Beta
   public Optional<Long> sizeIfKnown() {
     return Optional.absent();
   }
@@ -215,10 +230,7 @@ public abstract class ByteSource {
     }
   }
 
-  /**
-   * Counts the bytes in the given input stream using skip if possible. Returns SKIP_FAILED if the
-   * first call to skip threw, in which case skip may just not be supported.
-   */
+  /** Counts the bytes in the given input stream using skip if possible. */
   private long countBySkipping(InputStream in) throws IOException {
     long count = 0;
     long skipped;
@@ -303,9 +315,9 @@ public abstract class ByteSource {
    *     processor} throws an {@code IOException}
    * @since 16.0
    */
-  @Beta
   @CanIgnoreReturnValue // some processors won't return a useful result
-  public <T> T read(ByteProcessor<T> processor) throws IOException {
+  @ParametricNullness
+  public <T extends @Nullable Object> T read(ByteProcessor<T> processor) throws IOException {
     checkNotNull(processor);
 
     Closer closer = Closer.create();
@@ -419,6 +431,11 @@ public abstract class ByteSource {
    * Returns a view of the given byte array as a {@link ByteSource}. To view only a specific range
    * in the array, use {@code ByteSource.wrap(b).slice(offset, length)}.
    *
+   * <p>Note that the given byte array may be passed directly to methods on, for example, {@code
+   * OutputStream} (when {@code copyTo(OutputStream)} is called on the resulting {@code
+   * ByteSource}). This could allow a malicious {@code OutputStream} implementation to modify the
+   * contents of the array, but provides better performance in the normal case.
+   *
    * @since 15.0 (since 14.0 as {@code ByteStreams.asByteSource(byte[])}).
    */
   public static ByteSource wrap(byte[] b) {
@@ -528,7 +545,9 @@ public abstract class ByteSource {
       checkArgument(offset >= 0, "offset (%s) may not be negative", offset);
       checkArgument(length >= 0, "length (%s) may not be negative", length);
       long maxLength = this.length - offset;
-      return ByteSource.this.slice(this.offset + offset, Math.min(length, maxLength));
+      return maxLength <= 0
+          ? ByteSource.empty()
+          : ByteSource.this.slice(this.offset + offset, min(length, maxLength));
     }
 
     @Override
@@ -541,8 +560,8 @@ public abstract class ByteSource {
       Optional<Long> optionalUnslicedSize = ByteSource.this.sizeIfKnown();
       if (optionalUnslicedSize.isPresent()) {
         long unslicedSize = optionalUnslicedSize.get();
-        long off = Math.min(offset, unslicedSize);
-        return Optional.of(Math.min(length, unslicedSize - off));
+        long off = min(offset, unslicedSize);
+        return Optional.of(min(length, unslicedSize - off));
       }
       return Optional.absent();
     }
@@ -553,7 +572,9 @@ public abstract class ByteSource {
     }
   }
 
-  private static class ByteArrayByteSource extends ByteSource {
+  private static class ByteArrayByteSource extends
+      ByteSource
+  {
 
     final byte[] bytes;
     final int offset;
@@ -576,7 +597,7 @@ public abstract class ByteSource {
     }
 
     @Override
-    public InputStream openBufferedStream() throws IOException {
+    public InputStream openBufferedStream() {
       return openStream();
     }
 
@@ -602,7 +623,8 @@ public abstract class ByteSource {
 
     @SuppressWarnings("CheckReturnValue") // it doesn't matter what processBytes returns here
     @Override
-    public <T> T read(ByteProcessor<T> processor) throws IOException {
+    @ParametricNullness
+    public <T extends @Nullable Object> T read(ByteProcessor<T> processor) throws IOException {
       processor.processBytes(bytes, offset, length);
       return processor.getResult();
     }
@@ -623,8 +645,8 @@ public abstract class ByteSource {
       checkArgument(offset >= 0, "offset (%s) may not be negative", offset);
       checkArgument(length >= 0, "length (%s) may not be negative", length);
 
-      offset = Math.min(offset, this.length);
-      length = Math.min(length, this.length - offset);
+      offset = min(offset, this.length);
+      length = min(length, this.length - offset);
       int newOffset = this.offset + (int) offset;
       return new ByteArrayByteSource(bytes, newOffset, (int) length);
     }

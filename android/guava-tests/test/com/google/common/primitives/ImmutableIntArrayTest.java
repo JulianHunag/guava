@@ -14,12 +14,15 @@
 
 package com.google.common.primitives;
 
+import static com.google.common.primitives.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.primitives.TestPlatform.reduceIterationsIfGwt;
 import static com.google.common.testing.SerializableTester.reserialize;
 import static com.google.common.truth.Truth.assertThat;
+import static java.util.Arrays.stream;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ObjectArrays;
 import com.google.common.collect.testing.ListTestSuiteBuilder;
@@ -36,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
@@ -88,7 +92,7 @@ public class ImmutableIntArrayTest extends TestCase {
      * We don't guarantee the same-as property, so we aren't obligated to test it. However, it's
      * useful in testing - when two things are the same then one can't have bugs the other doesn't.
      */
-    assertThat(ImmutableIntArray.copyOf(new int[0])).isSameAs(ImmutableIntArray.of());
+    assertThat(ImmutableIntArray.copyOf(new int[0])).isSameInstanceAs(ImmutableIntArray.of());
   }
 
   public void testCopyOf_array_nonempty() {
@@ -100,7 +104,7 @@ public class ImmutableIntArrayTest extends TestCase {
 
   public void testCopyOf_iterable_notCollection_empty() {
     Iterable<Integer> iterable = iterable(Collections.<Integer>emptySet());
-    assertThat(ImmutableIntArray.copyOf(iterable)).isSameAs(ImmutableIntArray.of());
+    assertThat(ImmutableIntArray.copyOf(iterable)).isSameInstanceAs(ImmutableIntArray.of());
   }
 
   public void testCopyOf_iterable_notCollection_nonempty() {
@@ -112,7 +116,7 @@ public class ImmutableIntArrayTest extends TestCase {
 
   public void testCopyOf_iterable_collection_empty() {
     Iterable<Integer> iterable = Collections.emptySet();
-    assertThat(ImmutableIntArray.copyOf(iterable)).isSameAs(ImmutableIntArray.of());
+    assertThat(ImmutableIntArray.copyOf(iterable)).isSameInstanceAs(ImmutableIntArray.of());
   }
 
   public void testCopyOf_iterable_collection_nonempty() {
@@ -124,7 +128,7 @@ public class ImmutableIntArrayTest extends TestCase {
 
   public void testCopyOf_collection_empty() {
     Collection<Integer> iterable = Collections.emptySet();
-    assertThat(ImmutableIntArray.copyOf(iterable)).isSameAs(ImmutableIntArray.of());
+    assertThat(ImmutableIntArray.copyOf(iterable)).isSameInstanceAs(ImmutableIntArray.of());
   }
 
   public void testCopyOf_collection_nonempty() {
@@ -132,6 +136,14 @@ public class ImmutableIntArrayTest extends TestCase {
     ImmutableIntArray iia = ImmutableIntArray.copyOf(list);
     list.set(2, 2);
     assertThat(iia.asList()).containsExactly(0, 1, 3).inOrder();
+  }
+
+  public void testCopyOf_stream() {
+    assertThat(ImmutableIntArray.copyOf(IntStream.empty()))
+        .isSameInstanceAs(ImmutableIntArray.of());
+    assertThat(ImmutableIntArray.copyOf(IntStream.of(0, 1, 3)).asList())
+        .containsExactly(0, 1, 3)
+        .inOrder();
   }
 
   public void testBuilder_presize_zero() {
@@ -142,11 +154,7 @@ public class ImmutableIntArrayTest extends TestCase {
   }
 
   public void testBuilder_presize_negative() {
-    try {
-      ImmutableIntArray.builder(-1);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> ImmutableIntArray.builder(-1));
   }
 
   /**
@@ -207,6 +215,16 @@ public class ImmutableIntArrayTest extends TestCase {
         builder.addAll(iterable(list));
       }
     },
+    ADD_STREAM {
+      @Override
+      void doIt(ImmutableIntArray.Builder builder, AtomicInteger counter) {
+        int[] array = new int[RANDOM.nextInt(10)];
+        for (int i = 0; i < array.length; i++) {
+          array[i] = counter.getAndIncrement();
+        }
+        builder.addAll(stream(array));
+      }
+    },
     ADD_IIA {
       @Override
       void doIt(ImmutableIntArray.Builder builder, AtomicInteger counter) {
@@ -265,23 +283,11 @@ public class ImmutableIntArrayTest extends TestCase {
 
   public void testGet_bad() {
     ImmutableIntArray iia = ImmutableIntArray.of(0, 1, 3);
-    try {
-      iia.get(-1);
-      fail();
-    } catch (IndexOutOfBoundsException expected) {
-    }
-    try {
-      iia.get(3);
-      fail();
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    assertThrows(IndexOutOfBoundsException.class, () -> iia.get(-1));
+    assertThrows(IndexOutOfBoundsException.class, () -> iia.get(3));
 
-    iia = iia.subArray(1, 2);
-    try {
-      iia.get(-1);
-      fail();
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    ImmutableIntArray sub = iia.subArray(1, 2);
+    assertThrows(IndexOutOfBoundsException.class, () -> sub.get(-1));
   }
 
   public void testIndexOf() {
@@ -314,28 +320,35 @@ public class ImmutableIntArrayTest extends TestCase {
     assertThat(iia.subArray(1, 5).contains(1)).isTrue();
   }
 
+  public void testForEach() {
+    ImmutableIntArray.of().forEach(i -> fail());
+    ImmutableIntArray.of(0, 1, 3).subArray(1, 1).forEach(i -> fail());
+
+    AtomicInteger count = new AtomicInteger(0);
+    ImmutableIntArray.of(0, 1, 2, 3).forEach(i -> assertThat(i).isEqualTo(count.getAndIncrement()));
+    assertThat(count.get()).isEqualTo(4);
+  }
+
+  public void testStream() {
+    ImmutableIntArray.of().stream().forEach(i -> fail());
+    ImmutableIntArray.of(0, 1, 3).subArray(1, 1).stream().forEach(i -> fail());
+    assertThat(ImmutableIntArray.of(0, 1, 3).stream().toArray()).isEqualTo(new int[] {0, 1, 3});
+  }
+
   public void testSubArray() {
     ImmutableIntArray iia0 = ImmutableIntArray.of();
     ImmutableIntArray iia1 = ImmutableIntArray.of(5);
     ImmutableIntArray iia3 = ImmutableIntArray.of(5, 25, 125);
 
-    assertThat(iia0.subArray(0, 0)).isSameAs(ImmutableIntArray.of());
-    assertThat(iia1.subArray(0, 0)).isSameAs(ImmutableIntArray.of());
-    assertThat(iia1.subArray(1, 1)).isSameAs(ImmutableIntArray.of());
+    assertThat(iia0.subArray(0, 0)).isSameInstanceAs(ImmutableIntArray.of());
+    assertThat(iia1.subArray(0, 0)).isSameInstanceAs(ImmutableIntArray.of());
+    assertThat(iia1.subArray(1, 1)).isSameInstanceAs(ImmutableIntArray.of());
     assertThat(iia1.subArray(0, 1).asList()).containsExactly(5);
     assertThat(iia3.subArray(0, 2).asList()).containsExactly(5, 25).inOrder();
     assertThat(iia3.subArray(1, 3).asList()).containsExactly(25, 125).inOrder();
 
-    try {
-      iia3.subArray(-1, 1);
-      fail();
-    } catch (IndexOutOfBoundsException expected) {
-    }
-    try {
-      iia3.subArray(1, 4);
-      fail();
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    assertThrows(IndexOutOfBoundsException.class, () -> iia3.subArray(-1, 1));
+    assertThrows(IndexOutOfBoundsException.class, () -> iia3.subArray(1, 4));
   }
 
   /*
@@ -386,11 +399,12 @@ public class ImmutableIntArrayTest extends TestCase {
     assertActuallyTrims(underSized);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // SerializableTester
   public void testSerialization() {
-    assertThat(reserialize(ImmutableIntArray.of())).isSameAs(ImmutableIntArray.of());
+    assertThat(reserialize(ImmutableIntArray.of())).isSameInstanceAs(ImmutableIntArray.of());
     assertThat(reserialize(ImmutableIntArray.of(0, 1).subArray(1, 1)))
-        .isSameAs(ImmutableIntArray.of());
+        .isSameInstanceAs(ImmutableIntArray.of());
 
     ImmutableIntArray iia = ImmutableIntArray.of(0, 1, 3, 6).subArray(1, 3);
     ImmutableIntArray iia2 = reserialize(iia);
@@ -400,16 +414,17 @@ public class ImmutableIntArrayTest extends TestCase {
 
   private static void assertActuallyTrims(ImmutableIntArray iia) {
     ImmutableIntArray trimmed = iia.trimmed();
-    assertThat(trimmed).isNotSameAs(iia);
+    assertThat(trimmed).isNotSameInstanceAs(iia);
 
     // Yes, this is apparently how you check array equality in Truth
     assertThat(trimmed.toArray()).isEqualTo(iia.toArray());
   }
 
   private static void assertDoesntActuallyTrim(ImmutableIntArray iia) {
-    assertThat(iia.trimmed()).isSameAs(iia);
+    assertThat(iia.trimmed()).isSameInstanceAs(iia);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // suite
   public static Test suite() {
     List<ListTestSuiteBuilder<Integer>> builders =
@@ -441,6 +456,7 @@ public class ImmutableIntArrayTest extends TestCase {
     return suite;
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // used only from suite
   private static ImmutableIntArray makeArray(Integer[] values) {
     return ImmutableIntArray.copyOf(Arrays.asList(values));
@@ -449,6 +465,7 @@ public class ImmutableIntArrayTest extends TestCase {
   // Test generators.  To let the GWT test suite generator access them, they need to be public named
   // classes with a public default constructor (not that we run these suites under GWT yet).
 
+  @J2ktIncompatible
   @GwtIncompatible // used only from suite
   public static final class ImmutableIntArrayAsListGenerator extends TestIntegerListGenerator {
     @Override
@@ -457,6 +474,7 @@ public class ImmutableIntArrayTest extends TestCase {
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // used only from suite
   public static final class ImmutableIntArrayHeadSubListAsListGenerator
       extends TestIntegerListGenerator {
@@ -468,6 +486,7 @@ public class ImmutableIntArrayTest extends TestCase {
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // used only from suite
   public static final class ImmutableIntArrayTailSubListAsListGenerator
       extends TestIntegerListGenerator {
@@ -479,6 +498,7 @@ public class ImmutableIntArrayTest extends TestCase {
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // used only from suite
   public static final class ImmutableIntArrayMiddleSubListAsListGenerator
       extends TestIntegerListGenerator {
@@ -491,11 +511,13 @@ public class ImmutableIntArrayTest extends TestCase {
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // used only from suite
   private static Integer[] concat(Integer[] a, Integer[] b) {
     return ObjectArrays.concat(a, b, Integer.class);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // used only from suite
   public abstract static class TestIntegerListGenerator implements TestListGenerator<Integer> {
     @Override
@@ -531,6 +553,7 @@ public class ImmutableIntArrayTest extends TestCase {
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // used only from suite
   public static class SampleIntegers extends SampleElements<Integer> {
     public SampleIntegers() {

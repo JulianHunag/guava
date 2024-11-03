@@ -19,6 +19,7 @@ package com.google.common.base;
 import static com.google.common.base.StandardSystemProperty.JAVA_CLASS_PATH;
 import static com.google.common.base.StandardSystemProperty.JAVA_SPECIFICATION_VERSION;
 import static com.google.common.base.StandardSystemProperty.PATH_SEPARATOR;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.testing.GcFinalization;
@@ -35,7 +36,6 @@ import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import junit.framework.TestCase;
 
@@ -46,6 +46,7 @@ import junit.framework.TestCase;
  *
  * @author Eamonn McManus
  */
+
 
 public class FinalizableReferenceQueueClassLoaderUnloadingTest extends TestCase {
 
@@ -110,7 +111,8 @@ public class FinalizableReferenceQueueClassLoaderUnloadingTest extends TestCase 
 
     // Now make a parallel FRQ and an associated FinalizableWeakReference to an object, in order to
     // exercise some classes from the parallel ClassLoader.
-    AtomicReference<Object> sepFrqA = new AtomicReference<Object>(sepFrqC.newInstance());
+    AtomicReference<Object> sepFrqA =
+        new AtomicReference<Object>(sepFrqC.getDeclaredConstructor().newInstance());
     Class<?> sepFwrC = sepLoader.loadClass(MyFinalizableWeakReference.class.getName());
     Constructor<?> sepFwrCons = sepFwrC.getConstructor(Object.class, sepFrqC);
     // The object that we will wrap in FinalizableWeakReference is a Stopwatch.
@@ -240,14 +242,14 @@ public class FinalizableReferenceQueueClassLoaderUnloadingTest extends TestCase 
     assertNotSame(frqUserC, sepFrqUserC);
     assertSame(sepLoader, sepFrqUserC.getClassLoader());
 
-    Callable<?> sepFrqUser = (Callable<?>) sepFrqUserC.newInstance();
+    Callable<?> sepFrqUser = (Callable<?>) sepFrqUserC.getDeclaredConstructor().newInstance();
     WeakReference<?> finalizableWeakReference = (WeakReference<?>) sepFrqUser.call();
 
     GcFinalization.awaitClear(finalizableWeakReference);
 
     Field sepFrqUserFinalizedF = sepFrqUserC.getField("finalized");
     Semaphore finalizeCount = (Semaphore) sepFrqUserFinalizedF.get(null);
-    boolean finalized = finalizeCount.tryAcquire(5, TimeUnit.SECONDS);
+    boolean finalized = finalizeCount.tryAcquire(5, SECONDS);
     assertTrue(finalized);
 
     Field sepFrqUserFrqF = sepFrqUserC.getField("frq");
@@ -279,9 +281,7 @@ public class FinalizableReferenceQueueClassLoaderUnloadingTest extends TestCase 
           urls.add(new URL("file", null, new File(entry).getAbsolutePath()));
         }
       } catch (MalformedURLException e) {
-        AssertionError error = new AssertionError("malformed class path entry: " + entry);
-        error.initCause(e);
-        throw error;
+        throw new AssertionError("malformed class path entry: " + entry, e);
       }
     }
     return urls.build();

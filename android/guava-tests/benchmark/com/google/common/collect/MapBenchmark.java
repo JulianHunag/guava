@@ -17,6 +17,8 @@
 package com.google.common.collect;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static java.util.Collections.sort;
+import static java.util.Collections.unmodifiableMap;
 
 import com.google.caliper.BeforeExperiment;
 import com.google.caliper.Benchmark;
@@ -26,7 +28,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -64,7 +65,7 @@ public class MapBenchmark {
     UnmodHM {
       @Override
       Map<Element, Element> create(Collection<Element> keys) {
-        return Collections.unmodifiableMap(Hash.create(keys));
+        return unmodifiableMap(Hash.create(keys));
       }
     },
     SyncHM {
@@ -140,7 +141,7 @@ public class MapBenchmark {
         for (Element element : keys) {
           builder.put(element, element);
         }
-        return builder.build();
+        return builder.buildOrThrow();
       }
     },
     ImmutableSorted {
@@ -187,7 +188,7 @@ public class MapBenchmark {
 
     if (sortedData) {
       List<Element> valueList = newArrayList(sampleData.getValuesInSet());
-      Collections.sort(valueList);
+      sort(valueList);
       values = valueList;
     } else {
       values = sampleData.getValuesInSet();
@@ -224,12 +225,24 @@ public class MapBenchmark {
   }
 
   @Benchmark
+  boolean createPopulateAndRemove(int reps) {
+    boolean dummy = false;
+    for (int i = 1; i < reps; i++) {
+      Map<Element, Element> map = impl.create(values);
+      for (Element value : values) {
+        dummy |= map.remove(value) == null;
+      }
+    }
+    return dummy;
+  }
+
+  @Benchmark
   boolean iterateWithEntrySet(int reps) {
     Map<Element, Element> map = mapToTest;
 
     boolean dummy = false;
     for (int i = 0; i < reps; i++) {
-      for (Entry<Element, Element> entry : map.entrySet()) {
+      for (Map.Entry<Element, Element> entry : map.entrySet()) {
         dummy ^= entry.getKey() != entry.getValue();
       }
     }

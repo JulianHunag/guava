@@ -17,7 +17,10 @@
 package com.google.common.util.concurrent;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.util.concurrent.MoreExecutors.newSequentialExecutor;
 import static com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -32,7 +35,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import junit.framework.TestCase;
@@ -78,11 +80,7 @@ public class SequentialExecutorTest extends TestCase {
   }
 
   public void testConstructingWithNullExecutor_fails() {
-    try {
-      new SequentialExecutor(null);
-      fail("Should have failed with NullPointerException.");
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> new SequentialExecutor(null));
   }
 
   public void testBasics() {
@@ -188,7 +186,7 @@ public class SequentialExecutorTest extends TestCase {
     // Check that this thread has been marked as interrupted again now that the thread has been
     // returned by SequentialExecutor. Clear the bit while checking so that the test doesn't hose
     // JUnit or some other test case.
-    assertThat(Thread.currentThread().interrupted()).isTrue();
+    assertThat(Thread.interrupted()).isTrue();
   }
 
   public void testInterrupt_doesNotInterruptSubsequentTask() throws Exception {
@@ -215,7 +213,7 @@ public class SequentialExecutorTest extends TestCase {
     // Check that the interruption of a SequentialExecutor's task is restored to the thread once
     // it is yielded. Clear the bit while checking so that the test doesn't hose JUnit or some other
     // test case.
-    assertThat(Thread.currentThread().interrupted()).isTrue();
+    assertThat(Thread.interrupted()).isTrue();
   }
 
   public void testInterrupt_doesNotStopExecution() {
@@ -262,17 +260,21 @@ public class SequentialExecutorTest extends TestCase {
             numCalls.incrementAndGet();
           }
         };
-    try {
-      executor.execute(task);
-      fail();
-    } catch (RejectedExecutionException expected) {
-    }
+    assertThrows(RejectedExecutionException.class, () -> executor.execute(task));
     assertEquals(0, numCalls.get());
     reject.set(false);
     executor.execute(task);
     assertEquals(1, numCalls.get());
   }
 
+  /*
+   * Under Android, MyError propagates up and fails the test?
+   *
+   * TODO(b/218700094): Does this matter to prod users, or is it just a feature of our testing
+   * environment? If the latter, maybe write a custom Executor that avoids failing the test when it
+   * sees an Error?
+   */
+  @AndroidIncompatible
   public void testTaskThrowsError() throws Exception {
     class MyError extends Error {}
     final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -301,11 +303,11 @@ public class SequentialExecutorTest extends TestCase {
       executor.execute(errorTask);
       service.execute(barrierTask); // submit directly to the service
       // the barrier task runs after the error task so we know that the error has been observed by
-      // SequentialExecutor by the time the barrier is satified
-      barrier.await(1, TimeUnit.SECONDS);
+      // SequentialExecutor by the time the barrier is satisfied
+      barrier.await(1, SECONDS);
       executor.execute(barrierTask);
       // timeout means the second task wasn't even tried
-      barrier.await(1, TimeUnit.SECONDS);
+      barrier.await(1, SECONDS);
     } finally {
       service.shutdown();
     }
@@ -334,18 +336,47 @@ public class SequentialExecutorTest extends TestCase {
                 executor.execute(Runnables.doNothing());
               }
             });
-    future.get(10, TimeUnit.SECONDS);
-    try {
-      executor.execute(Runnables.doNothing());
-      fail();
-    } catch (RejectedExecutionException expected) {
-    }
+    future.get(10, SECONDS);
+    assertThrows(RejectedExecutionException.class, () -> executor.execute(Runnables.doNothing()));
     latch.countDown();
-    try {
-      first.get(10, TimeUnit.SECONDS);
-      fail();
-    } catch (ExecutionException expected) {
-      assertThat(expected).hasCauseThat().isInstanceOf(RejectedExecutionException.class);
-    }
+    ExecutionException expected =
+        assertThrows(ExecutionException.class, () -> first.get(10, SECONDS));
+    assertThat(expected).hasCauseThat().isInstanceOf(RejectedExecutionException.class);
+  }
+
+  public void testToString() {
+    final Runnable[] currentTask = new Runnable[1];
+    final Executor delegate =
+        new Executor() {
+          @Override
+          public void execute(Runnable task) {
+            currentTask[0] = task;
+            task.run();
+            currentTask[0] = null;
+          }
+
+          @Override
+          public String toString() {
+            return "theDelegate";
+          }
+        };
+    Executor sequential1 = newSequentialExecutor(delegate);
+    Executor sequential2 = newSequentialExecutor(delegate);
+    assertThat(sequential1.toString()).contains("theDelegate");
+    assertThat(sequential1.toString()).isNotEqualTo(sequential2.toString());
+    final String[] whileRunningToString = new String[1];
+    sequential1.execute(
+        new Runnable() {
+          @Override
+          public void run() {
+            whileRunningToString[0] = "" + currentTask[0];
+          }
+
+          @Override
+          public String toString() {
+            return "my runnable's toString";
+          }
+        });
+    assertThat(whileRunningToString[0]).contains("my runnable's toString");
   }
 }

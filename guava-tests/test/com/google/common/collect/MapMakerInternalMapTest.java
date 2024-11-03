@@ -90,7 +90,7 @@ public class MapMakerInternalMapTest extends TestCase {
   }
 
   public void testSetConcurrencyLevel() {
-    // round up to nearest power of two
+    // round up to the nearest power of two
 
     checkConcurrencyLevel(1, 1);
     checkConcurrencyLevel(2, 2);
@@ -109,7 +109,7 @@ public class MapMakerInternalMapTest extends TestCase {
   }
 
   public void testSetInitialCapacity() {
-    // share capacity over each segment, then round up to nearest power of two
+    // share capacity over each segment, then round up to the nearest power of two
 
     checkInitialCapacity(1, 0, 1);
     checkInitialCapacity(1, 1, 1);
@@ -150,42 +150,6 @@ public class MapMakerInternalMapTest extends TestCase {
     for (int i = 0; i < map.segments.length; i++) {
       assertEquals(segmentSize, map.segments[i].table.length());
     }
-  }
-
-  public void testSetMaximumSize() {
-    // vary maximumSize wrt concurrencyLevel
-
-    for (int maxSize = 1; maxSize < 8; maxSize++) {
-      checkMaximumSize(1, 8, maxSize);
-      checkMaximumSize(2, 8, maxSize);
-      checkMaximumSize(4, 8, maxSize);
-      checkMaximumSize(8, 8, maxSize);
-    }
-
-    checkMaximumSize(1, 8, Integer.MAX_VALUE);
-    checkMaximumSize(2, 8, Integer.MAX_VALUE);
-    checkMaximumSize(4, 8, Integer.MAX_VALUE);
-    checkMaximumSize(8, 8, Integer.MAX_VALUE);
-
-    // vary initial capacity wrt maximumSize
-
-    for (int capacity = 0; capacity < 8; capacity++) {
-      checkMaximumSize(1, capacity, 4);
-      checkMaximumSize(2, capacity, 4);
-      checkMaximumSize(4, capacity, 4);
-      checkMaximumSize(8, capacity, 4);
-    }
-  }
-
-  private static void checkMaximumSize(int concurrencyLevel, int initialCapacity, int maxSize) {
-    MapMakerInternalMap<Object, Object, ?, ?> map =
-        makeMap(
-            createMapMaker().concurrencyLevel(concurrencyLevel).initialCapacity(initialCapacity));
-    int totalCapacity = 0;
-    for (int i = 0; i < map.segments.length; i++) {
-      totalCapacity += map.segments[i].maxSegmentSize;
-    }
-    assertTrue("totalCapcity=" + totalCapacity + ", maxSize=" + maxSize, totalCapacity <= maxSize);
   }
 
   public void testSetWeakKeys() {
@@ -604,6 +568,7 @@ public class MapMakerInternalMapTest extends TestCase {
     assertNull(segment.get(key, hash));
   }
 
+  @SuppressWarnings("GuardedBy")
   public void testExpand() {
     MapMakerInternalMap<Object, Object, ?, ?> map =
         makeMap(createMapMaker().concurrencyLevel(1).initialCapacity(1));
@@ -629,6 +594,8 @@ public class MapMakerInternalMapTest extends TestCase {
 
     for (int i = 1; i <= originalCount * 2; i *= 2) {
       if (i > 1) {
+        // TODO(b/145386688): This access should be guarded by 'segment', which is not currently
+        // held
         segment.expand();
       }
       assertEquals(i, segment.table.length());
@@ -687,6 +654,7 @@ public class MapMakerInternalMapTest extends TestCase {
     assertNull(newFirst.getNext());
   }
 
+  @SuppressWarnings("GuardedBy")
   public void testExpand_cleanup() {
     MapMakerInternalMap<Object, Object, ?, ?> map =
         makeMap(createMapMaker().concurrencyLevel(1).initialCapacity(1));
@@ -719,6 +687,8 @@ public class MapMakerInternalMapTest extends TestCase {
 
     for (int i = 1; i <= originalCount * 2; i *= 2) {
       if (i > 1) {
+        // TODO(b/145386688): This access should be guarded by 'segment', which is not currently
+        // held
         segment.expand();
       }
       assertEquals(i, segment.table.length());
@@ -845,7 +815,7 @@ public class MapMakerInternalMapTest extends TestCase {
         InternalEntry<Object, Object, ?> entry = segment.getEntry(keyOne, hashOne);
 
         @SuppressWarnings("unchecked")
-        Reference<Object> reference = (Reference) entry;
+        Reference<Object> reference = (Reference<Object>) entry;
         reference.enqueue();
 
         map.put(keyTwo, valueTwo);
@@ -871,13 +841,12 @@ public class MapMakerInternalMapTest extends TestCase {
         Object valueTwo = new Object();
 
         map.put(keyOne, valueOne);
-        @SuppressWarnings("unchecked")
         WeakValueEntry<Object, Object, ?> entry =
             (WeakValueEntry<Object, Object, ?>) segment.getEntry(keyOne, hashOne);
         WeakValueReference<Object, Object, ?> valueReference = entry.getValueReference();
 
         @SuppressWarnings("unchecked")
-        Reference<Object> reference = (Reference) valueReference;
+        Reference<Object> reference = (Reference<Object>) valueReference;
         reference.enqueue();
 
         map.put(keyTwo, valueTwo);
@@ -905,7 +874,7 @@ public class MapMakerInternalMapTest extends TestCase {
         InternalEntry<Object, Object, ?> entry = segment.getEntry(keyOne, hashOne);
 
         @SuppressWarnings("unchecked")
-        Reference<Object> reference = (Reference) entry;
+        Reference<Object> reference = (Reference<Object>) entry;
         reference.enqueue();
 
         for (int i = 0; i < SMALL_MAX_SIZE; i++) {
@@ -932,13 +901,12 @@ public class MapMakerInternalMapTest extends TestCase {
         Object keyTwo = new Object();
 
         map.put(keyOne, valueOne);
-        @SuppressWarnings("unchecked")
         WeakValueEntry<Object, Object, ?> entry =
             (WeakValueEntry<Object, Object, ?>) segment.getEntry(keyOne, hashOne);
         WeakValueReference<Object, Object, ?> valueReference = entry.getValueReference();
 
         @SuppressWarnings("unchecked")
-        Reference<Object> reference = (Reference) valueReference;
+        Reference<Object> reference = (Reference<Object>) valueReference;
         reference.enqueue();
 
         for (int i = 0; i < SMALL_MAX_SIZE; i++) {

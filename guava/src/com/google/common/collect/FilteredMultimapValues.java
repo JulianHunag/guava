@@ -15,6 +15,7 @@
 package com.google.common.collect;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Predicates.not;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.base.Objects;
@@ -25,6 +26,7 @@ import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import javax.annotation.CheckForNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -33,7 +35,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * @author Louis Wasserman
  */
 @GwtCompatible
-final class FilteredMultimapValues<K, V> extends AbstractCollection<V> {
+@ElementTypesAreNonnullByDefault
+final class FilteredMultimapValues<K extends @Nullable Object, V extends @Nullable Object>
+    extends AbstractCollection<V> {
   @Weak private final FilteredMultimap<K, V> multimap;
 
   FilteredMultimapValues(FilteredMultimap<K, V> multimap) {
@@ -46,7 +50,7 @@ final class FilteredMultimapValues<K, V> extends AbstractCollection<V> {
   }
 
   @Override
-  public boolean contains(@Nullable Object o) {
+  public boolean contains(@CheckForNull Object o) {
     return multimap.containsValue(o);
   }
 
@@ -56,7 +60,7 @@ final class FilteredMultimapValues<K, V> extends AbstractCollection<V> {
   }
 
   @Override
-  public boolean remove(@Nullable Object o) {
+  public boolean remove(@CheckForNull Object o) {
     Predicate<? super Entry<K, V>> entryPredicate = multimap.entryPredicate();
     for (Iterator<Entry<K, V>> unfilteredItr = multimap.unfiltered().entries().iterator();
         unfilteredItr.hasNext(); ) {
@@ -84,8 +88,7 @@ final class FilteredMultimapValues<K, V> extends AbstractCollection<V> {
         multimap.unfiltered().entries(),
         // explicit <Entry<K, V>> is required to build with JDK6
         Predicates.<Entry<K, V>>and(
-            multimap.entryPredicate(),
-            Maps.<V>valuePredicateOnEntries(Predicates.not(Predicates.in(c)))));
+            multimap.entryPredicate(), Maps.<V>valuePredicateOnEntries(not(Predicates.in(c)))));
   }
 
   @Override

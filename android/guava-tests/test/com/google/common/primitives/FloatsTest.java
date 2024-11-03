@@ -16,11 +16,16 @@
 
 package com.google.common.primitives;
 
+import static com.google.common.primitives.Floats.max;
+import static com.google.common.primitives.Floats.min;
+import static com.google.common.primitives.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static java.lang.Float.NaN;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Converter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.testing.Helpers;
@@ -32,14 +37,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import junit.framework.TestCase;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Unit test for {@link Floats}.
  *
  * @author Kevin Bourrillion
  */
+@ElementTypesAreNonnullByDefault
 @GwtCompatible(emulated = true)
-@SuppressWarnings("cast") // redundant casts are intentional and harmless
 public class FloatsTest extends TestCase {
   private static final float[] EMPTY = {};
   private static final float[] ARRAY1 = {(float) 1};
@@ -72,13 +78,14 @@ public class FloatsTest extends TestCase {
 
   public void testHashCode() {
     for (float value : VALUES) {
-      assertEquals(((Float) value).hashCode(), Floats.hashCode(value));
+      assertThat(Floats.hashCode(value)).isEqualTo(((Float) value).hashCode());
     }
   }
 
   public void testIsFinite() {
     for (float value : NUMBERS) {
-      assertEquals(!(Float.isInfinite(value) || Float.isNaN(value)), Floats.isFinite(value));
+      assertThat(Floats.isFinite(value))
+          .isEqualTo(!(Float.isInfinite(value) || Float.isNaN(value)));
     }
   }
 
@@ -86,207 +93,223 @@ public class FloatsTest extends TestCase {
     for (float x : VALUES) {
       for (float y : VALUES) {
         // note: spec requires only that the sign is the same
-        assertEquals(x + ", " + y, Float.valueOf(x).compareTo(y), Floats.compare(x, y));
+        assertWithMessage(x + ", " + y)
+            .that(Floats.compare(x, y))
+            .isEqualTo(Float.valueOf(x).compareTo(y));
       }
     }
   }
 
   public void testContains() {
-    assertFalse(Floats.contains(EMPTY, (float) 1));
-    assertFalse(Floats.contains(ARRAY1, (float) 2));
-    assertFalse(Floats.contains(ARRAY234, (float) 1));
-    assertTrue(Floats.contains(new float[] {(float) -1}, (float) -1));
-    assertTrue(Floats.contains(ARRAY234, (float) 2));
-    assertTrue(Floats.contains(ARRAY234, (float) 3));
-    assertTrue(Floats.contains(ARRAY234, (float) 4));
+    assertThat(Floats.contains(EMPTY, (float) 1)).isFalse();
+    assertThat(Floats.contains(ARRAY1, (float) 2)).isFalse();
+    assertThat(Floats.contains(ARRAY234, (float) 1)).isFalse();
+    assertThat(Floats.contains(new float[] {(float) -1}, (float) -1)).isTrue();
+    assertThat(Floats.contains(ARRAY234, (float) 2)).isTrue();
+    assertThat(Floats.contains(ARRAY234, (float) 3)).isTrue();
+    assertThat(Floats.contains(ARRAY234, (float) 4)).isTrue();
 
     for (float value : NUMBERS) {
-      assertTrue("" + value, Floats.contains(new float[] {5f, value}, value));
+      assertWithMessage("" + value).that(Floats.contains(new float[] {5f, value}, value)).isTrue();
     }
-    assertFalse(Floats.contains(new float[] {5f, NaN}, NaN));
+    assertThat(Floats.contains(new float[] {5f, NaN}, NaN)).isFalse();
   }
 
   public void testIndexOf() {
-    assertEquals(-1, Floats.indexOf(EMPTY, (float) 1));
-    assertEquals(-1, Floats.indexOf(ARRAY1, (float) 2));
-    assertEquals(-1, Floats.indexOf(ARRAY234, (float) 1));
-    assertEquals(0, Floats.indexOf(new float[] {(float) -1}, (float) -1));
-    assertEquals(0, Floats.indexOf(ARRAY234, (float) 2));
-    assertEquals(1, Floats.indexOf(ARRAY234, (float) 3));
-    assertEquals(2, Floats.indexOf(ARRAY234, (float) 4));
-    assertEquals(
-        1, Floats.indexOf(new float[] {(float) 2, (float) 3, (float) 2, (float) 3}, (float) 3));
+    assertThat(Floats.indexOf(EMPTY, (float) 1)).isEqualTo(-1);
+    assertThat(Floats.indexOf(ARRAY1, (float) 2)).isEqualTo(-1);
+    assertThat(Floats.indexOf(ARRAY234, (float) 1)).isEqualTo(-1);
+    assertThat(Floats.indexOf(new float[] {(float) -1}, (float) -1)).isEqualTo(0);
+    assertThat(Floats.indexOf(ARRAY234, (float) 2)).isEqualTo(0);
+    assertThat(Floats.indexOf(ARRAY234, (float) 3)).isEqualTo(1);
+    assertThat(Floats.indexOf(ARRAY234, (float) 4)).isEqualTo(2);
+    assertThat(Floats.indexOf(new float[] {(float) 2, (float) 3, (float) 2, (float) 3}, (float) 3))
+        .isEqualTo(1);
 
     for (float value : NUMBERS) {
-      assertEquals("" + value, 1, Floats.indexOf(new float[] {5f, value}, value));
+      assertWithMessage("" + value)
+          .that(Floats.indexOf(new float[] {5f, value}, value))
+          .isEqualTo(1);
     }
-    assertEquals(-1, Floats.indexOf(new float[] {5f, NaN}, NaN));
+    assertThat(Floats.indexOf(new float[] {5f, NaN}, NaN)).isEqualTo(-1);
   }
 
   public void testIndexOf_arrayTarget() {
-    assertEquals(0, Floats.indexOf(EMPTY, EMPTY));
-    assertEquals(0, Floats.indexOf(ARRAY234, EMPTY));
-    assertEquals(-1, Floats.indexOf(EMPTY, ARRAY234));
-    assertEquals(-1, Floats.indexOf(ARRAY234, ARRAY1));
-    assertEquals(-1, Floats.indexOf(ARRAY1, ARRAY234));
-    assertEquals(0, Floats.indexOf(ARRAY1, ARRAY1));
-    assertEquals(0, Floats.indexOf(ARRAY234, ARRAY234));
-    assertEquals(0, Floats.indexOf(ARRAY234, new float[] {(float) 2, (float) 3}));
-    assertEquals(1, Floats.indexOf(ARRAY234, new float[] {(float) 3, (float) 4}));
-    assertEquals(1, Floats.indexOf(ARRAY234, new float[] {(float) 3}));
-    assertEquals(2, Floats.indexOf(ARRAY234, new float[] {(float) 4}));
-    assertEquals(
-        1,
-        Floats.indexOf(
-            new float[] {(float) 2, (float) 3, (float) 3, (float) 3, (float) 3},
-            new float[] {(float) 3}));
-    assertEquals(
-        2,
-        Floats.indexOf(
-            new float[] {
-              (float) 2, (float) 3, (float) 2, (float) 3, (float) 4, (float) 2, (float) 3
-            },
-            new float[] {(float) 2, (float) 3, (float) 4}));
-    assertEquals(
-        1,
-        Floats.indexOf(
-            new float[] {
-              (float) 2, (float) 2, (float) 3, (float) 4, (float) 2, (float) 3, (float) 4
-            },
-            new float[] {(float) 2, (float) 3, (float) 4}));
-    assertEquals(
-        -1,
-        Floats.indexOf(
-            new float[] {(float) 4, (float) 3, (float) 2},
-            new float[] {(float) 2, (float) 3, (float) 4}));
+    assertThat(Floats.indexOf(EMPTY, EMPTY)).isEqualTo(0);
+    assertThat(Floats.indexOf(ARRAY234, EMPTY)).isEqualTo(0);
+    assertThat(Floats.indexOf(EMPTY, ARRAY234)).isEqualTo(-1);
+    assertThat(Floats.indexOf(ARRAY234, ARRAY1)).isEqualTo(-1);
+    assertThat(Floats.indexOf(ARRAY1, ARRAY234)).isEqualTo(-1);
+    assertThat(Floats.indexOf(ARRAY1, ARRAY1)).isEqualTo(0);
+    assertThat(Floats.indexOf(ARRAY234, ARRAY234)).isEqualTo(0);
+    assertThat(Floats.indexOf(ARRAY234, new float[] {(float) 2, (float) 3})).isEqualTo(0);
+    assertThat(Floats.indexOf(ARRAY234, new float[] {(float) 3, (float) 4})).isEqualTo(1);
+    assertThat(Floats.indexOf(ARRAY234, new float[] {(float) 3})).isEqualTo(1);
+    assertThat(Floats.indexOf(ARRAY234, new float[] {(float) 4})).isEqualTo(2);
+    assertThat(
+            Floats.indexOf(
+                new float[] {(float) 2, (float) 3, (float) 3, (float) 3, (float) 3},
+                new float[] {(float) 3}))
+        .isEqualTo(1);
+    assertThat(
+            Floats.indexOf(
+                new float[] {
+                  (float) 2, (float) 3, (float) 2, (float) 3, (float) 4, (float) 2, (float) 3
+                },
+                new float[] {(float) 2, (float) 3, (float) 4}))
+        .isEqualTo(2);
+    assertThat(
+            Floats.indexOf(
+                new float[] {
+                  (float) 2, (float) 2, (float) 3, (float) 4, (float) 2, (float) 3, (float) 4
+                },
+                new float[] {(float) 2, (float) 3, (float) 4}))
+        .isEqualTo(1);
+    assertThat(
+            Floats.indexOf(
+                new float[] {(float) 4, (float) 3, (float) 2},
+                new float[] {(float) 2, (float) 3, (float) 4}))
+        .isEqualTo(-1);
 
     for (float value : NUMBERS) {
-      assertEquals(
-          "" + value,
-          1,
-          Floats.indexOf(new float[] {5f, value, value, 5f}, new float[] {value, value}));
+      assertWithMessage("" + value)
+          .that(Floats.indexOf(new float[] {5f, value, value, 5f}, new float[] {value, value}))
+          .isEqualTo(1);
     }
-    assertEquals(-1, Floats.indexOf(new float[] {5f, NaN, NaN, 5f}, new float[] {NaN, NaN}));
+    assertThat(Floats.indexOf(new float[] {5f, NaN, NaN, 5f}, new float[] {NaN, NaN}))
+        .isEqualTo(-1);
   }
 
   public void testLastIndexOf() {
-    assertEquals(-1, Floats.lastIndexOf(EMPTY, (float) 1));
-    assertEquals(-1, Floats.lastIndexOf(ARRAY1, (float) 2));
-    assertEquals(-1, Floats.lastIndexOf(ARRAY234, (float) 1));
-    assertEquals(0, Floats.lastIndexOf(new float[] {(float) -1}, (float) -1));
-    assertEquals(0, Floats.lastIndexOf(ARRAY234, (float) 2));
-    assertEquals(1, Floats.lastIndexOf(ARRAY234, (float) 3));
-    assertEquals(2, Floats.lastIndexOf(ARRAY234, (float) 4));
-    assertEquals(
-        3, Floats.lastIndexOf(new float[] {(float) 2, (float) 3, (float) 2, (float) 3}, (float) 3));
+    assertThat(Floats.lastIndexOf(EMPTY, (float) 1)).isEqualTo(-1);
+    assertThat(Floats.lastIndexOf(ARRAY1, (float) 2)).isEqualTo(-1);
+    assertThat(Floats.lastIndexOf(ARRAY234, (float) 1)).isEqualTo(-1);
+    assertThat(Floats.lastIndexOf(new float[] {(float) -1}, (float) -1)).isEqualTo(0);
+    assertThat(Floats.lastIndexOf(ARRAY234, (float) 2)).isEqualTo(0);
+    assertThat(Floats.lastIndexOf(ARRAY234, (float) 3)).isEqualTo(1);
+    assertThat(Floats.lastIndexOf(ARRAY234, (float) 4)).isEqualTo(2);
+    assertThat(
+            Floats.lastIndexOf(new float[] {(float) 2, (float) 3, (float) 2, (float) 3}, (float) 3))
+        .isEqualTo(3);
 
     for (float value : NUMBERS) {
-      assertEquals("" + value, 0, Floats.lastIndexOf(new float[] {value, 5f}, value));
+      assertWithMessage("" + value)
+          .that(Floats.lastIndexOf(new float[] {value, 5f}, value))
+          .isEqualTo(0);
     }
-    assertEquals(-1, Floats.lastIndexOf(new float[] {NaN, 5f}, NaN));
+    assertThat(Floats.lastIndexOf(new float[] {NaN, 5f}, NaN)).isEqualTo(-1);
   }
 
+  @GwtIncompatible
   public void testMax_noArgs() {
-    try {
-      Floats.max();
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> max());
   }
 
   public void testMax() {
-    assertEquals(GREATEST, Floats.max(GREATEST));
-    assertEquals(LEAST, Floats.max(LEAST));
-    assertEquals(
-        (float) 9,
-        Floats.max((float) 8, (float) 6, (float) 7, (float) 5, (float) 3, (float) 0, (float) 9));
+    assertThat(max(GREATEST)).isEqualTo(GREATEST);
+    assertThat(max(LEAST)).isEqualTo(LEAST);
+    assertThat(max((float) 8, (float) 6, (float) 7, (float) 5, (float) 3, (float) 0, (float) 9))
+        .isEqualTo((float) 9);
 
-    assertEquals(0f, Floats.max(-0f, 0f));
-    assertEquals(0f, Floats.max(0f, -0f));
-    assertEquals(GREATEST, Floats.max(NUMBERS));
-    assertTrue(Float.isNaN(Floats.max(VALUES)));
+    assertThat(max(-0f, 0f)).isEqualTo(0f);
+    assertThat(max(0f, -0f)).isEqualTo(0f);
+    assertThat(max(NUMBERS)).isEqualTo(GREATEST);
+    assertThat(Float.isNaN(max(VALUES))).isTrue();
   }
 
+  @GwtIncompatible
   public void testMin_noArgs() {
-    try {
-      Floats.min();
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> min());
   }
 
   public void testMin() {
-    assertEquals(LEAST, Floats.min(LEAST));
-    assertEquals(GREATEST, Floats.min(GREATEST));
-    assertEquals(
-        (float) 0,
-        Floats.min((float) 8, (float) 6, (float) 7, (float) 5, (float) 3, (float) 0, (float) 9));
+    assertThat(min(LEAST)).isEqualTo(LEAST);
+    assertThat(min(GREATEST)).isEqualTo(GREATEST);
+    assertThat(min((float) 8, (float) 6, (float) 7, (float) 5, (float) 3, (float) 0, (float) 9))
+        .isEqualTo((float) 0);
 
-    assertEquals(-0f, Floats.min(-0f, 0f));
-    assertEquals(-0f, Floats.min(0f, -0f));
-    assertEquals(LEAST, Floats.min(NUMBERS));
-    assertTrue(Float.isNaN(Floats.min(VALUES)));
+    assertThat(min(-0f, 0f)).isEqualTo(-0f);
+    assertThat(min(0f, -0f)).isEqualTo(-0f);
+    assertThat(min(NUMBERS)).isEqualTo(LEAST);
+    assertThat(Float.isNaN(min(VALUES))).isTrue();
   }
 
   public void testConstrainToRange() {
-    float tolerance = 1e-10f;
-    assertEquals((float) 1, Floats.constrainToRange((float) 1, (float) 0, (float) 5), tolerance);
-    assertEquals((float) 1, Floats.constrainToRange((float) 1, (float) 1, (float) 5), tolerance);
-    assertEquals((float) 3, Floats.constrainToRange((float) 1, (float) 3, (float) 5), tolerance);
-    assertEquals((float) -1, Floats.constrainToRange((float) 0, (float) -5, (float) -1), tolerance);
-    assertEquals((float) 2, Floats.constrainToRange((float) 5, (float) 2, (float) 2), tolerance);
-    try {
-      Floats.constrainToRange((float) 1, (float) 3, (float) 2);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThat(Floats.constrainToRange((float) 1, (float) 0, (float) 5)).isEqualTo((float) 1);
+    assertThat(Floats.constrainToRange((float) 1, (float) 1, (float) 5)).isEqualTo((float) 1);
+    assertThat(Floats.constrainToRange((float) 1, (float) 3, (float) 5)).isEqualTo((float) 3);
+    assertThat(Floats.constrainToRange((float) 0, (float) -5, (float) -1)).isEqualTo((float) -1);
+    assertThat(Floats.constrainToRange((float) 5, (float) 2, (float) 2)).isEqualTo((float) 2);
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Floats.constrainToRange((float) 1, (float) 3, (float) 2));
   }
 
   public void testConcat() {
-    assertTrue(Arrays.equals(EMPTY, Floats.concat()));
-    assertTrue(Arrays.equals(EMPTY, Floats.concat(EMPTY)));
-    assertTrue(Arrays.equals(EMPTY, Floats.concat(EMPTY, EMPTY, EMPTY)));
-    assertTrue(Arrays.equals(ARRAY1, Floats.concat(ARRAY1)));
-    assertNotSame(ARRAY1, Floats.concat(ARRAY1));
-    assertTrue(Arrays.equals(ARRAY1, Floats.concat(EMPTY, ARRAY1, EMPTY)));
-    assertTrue(
-        Arrays.equals(
-            new float[] {(float) 1, (float) 1, (float) 1}, Floats.concat(ARRAY1, ARRAY1, ARRAY1)));
-    assertTrue(
-        Arrays.equals(
-            new float[] {(float) 1, (float) 2, (float) 3, (float) 4},
-            Floats.concat(ARRAY1, ARRAY234)));
+    assertThat(Floats.concat()).isEqualTo(EMPTY);
+    assertThat(Floats.concat(EMPTY)).isEqualTo(EMPTY);
+    assertThat(Floats.concat(EMPTY, EMPTY, EMPTY)).isEqualTo(EMPTY);
+    assertThat(Floats.concat(ARRAY1)).isEqualTo(ARRAY1);
+    assertThat(Floats.concat(ARRAY1)).isNotSameInstanceAs(ARRAY1);
+    assertThat(Floats.concat(EMPTY, ARRAY1, EMPTY)).isEqualTo(ARRAY1);
+    assertThat(Floats.concat(ARRAY1, ARRAY1, ARRAY1))
+        .isEqualTo(new float[] {(float) 1, (float) 1, (float) 1});
+    assertThat(Floats.concat(ARRAY1, ARRAY234))
+        .isEqualTo(new float[] {(float) 1, (float) 2, (float) 3, (float) 4});
+  }
+
+  @GwtIncompatible // different overflow behavior; could probably be made to work by using ~~
+  public void testConcat_overflow_negative() {
+    int dim1 = 1 << 16;
+    int dim2 = 1 << 15;
+    assertThat(dim1 * dim2).isLessThan(0);
+    testConcatOverflow(dim1, dim2);
+  }
+
+  @GwtIncompatible // different overflow behavior; could probably be made to work by using ~~
+  public void testConcat_overflow_nonNegative() {
+    int dim1 = 1 << 16;
+    int dim2 = 1 << 16;
+    assertThat(dim1 * dim2).isAtLeast(0);
+    testConcatOverflow(dim1, dim2);
+  }
+
+  private static void testConcatOverflow(int arraysDim1, int arraysDim2) {
+    assertThat((long) arraysDim1 * arraysDim2).isNotEqualTo((long) (arraysDim1 * arraysDim2));
+
+    float[][] arrays = new float[arraysDim1][];
+    // it's shared to avoid using too much memory in tests
+    float[] sharedArray = new float[arraysDim2];
+    Arrays.fill(arrays, sharedArray);
+
+    try {
+      Floats.concat(arrays);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
   }
 
   public void testEnsureCapacity() {
-    assertSame(EMPTY, Floats.ensureCapacity(EMPTY, 0, 1));
-    assertSame(ARRAY1, Floats.ensureCapacity(ARRAY1, 0, 1));
-    assertSame(ARRAY1, Floats.ensureCapacity(ARRAY1, 1, 1));
-    assertTrue(
-        Arrays.equals(
-            new float[] {(float) 1, (float) 0, (float) 0}, Floats.ensureCapacity(ARRAY1, 2, 1)));
+    assertThat(Floats.ensureCapacity(EMPTY, 0, 1)).isSameInstanceAs(EMPTY);
+    assertThat(Floats.ensureCapacity(ARRAY1, 0, 1)).isSameInstanceAs(ARRAY1);
+    assertThat(Floats.ensureCapacity(ARRAY1, 1, 1)).isSameInstanceAs(ARRAY1);
+    assertThat(
+            Arrays.equals(
+                new float[] {(float) 1, (float) 0, (float) 0}, Floats.ensureCapacity(ARRAY1, 2, 1)))
+        .isTrue();
   }
 
   public void testEnsureCapacity_fail() {
-    try {
-      Floats.ensureCapacity(ARRAY1, -1, 1);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
-    try {
-      // notice that this should even fail when no growth was needed
-      Floats.ensureCapacity(ARRAY1, 1, -1);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> Floats.ensureCapacity(ARRAY1, -1, 1));
+    assertThrows(IllegalArgumentException.class, () -> Floats.ensureCapacity(ARRAY1, 1, -1));
   }
 
   @GwtIncompatible // Float.toString returns different value in GWT.
   public void testJoin() {
-    assertEquals("", Floats.join(",", EMPTY));
-    assertEquals("1.0", Floats.join(",", ARRAY1));
-    assertEquals("1.0,2.0", Floats.join(",", (float) 1, (float) 2));
-    assertEquals("1.02.03.0", Floats.join("", (float) 1, (float) 2, (float) 3));
+    assertThat(Floats.join(",", EMPTY)).isEmpty();
+    assertThat(Floats.join(",", ARRAY1)).isEqualTo("1.0");
+    assertThat(Floats.join(",", (float) 1, (float) 2)).isEqualTo("1.0,2.0");
+    assertThat(Floats.join("", (float) 1, (float) 2, (float) 3)).isEqualTo("1.02.03.0");
   }
 
   public void testLexicographicalComparator() {
@@ -306,10 +329,11 @@ public class FloatsTest extends TestCase {
     Helpers.testComparator(comparator, ordered);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // SerializableTester
   public void testLexicographicalComparatorSerializable() {
     Comparator<float[]> comparator = Floats.lexicographicalComparator();
-    assertSame(comparator, SerializableTester.reserialize(comparator));
+    assertThat(SerializableTester.reserialize(comparator)).isSameInstanceAs(comparator);
   }
 
   public void testReverse() {
@@ -323,14 +347,14 @@ public class FloatsTest extends TestCase {
   private static void testReverse(float[] input, float[] expectedOutput) {
     input = Arrays.copyOf(input, input.length);
     Floats.reverse(input);
-    assertTrue(Arrays.equals(expectedOutput, input));
+    assertThat(input).isEqualTo(expectedOutput);
   }
 
   private static void testReverse(
       float[] input, int fromIndex, int toIndex, float[] expectedOutput) {
     input = Arrays.copyOf(input, input.length);
     Floats.reverse(input, fromIndex, toIndex);
-    assertTrue(Arrays.equals(expectedOutput, input));
+    assertThat(input).isEqualTo(expectedOutput);
   }
 
   public void testReverseIndexed() {
@@ -342,6 +366,103 @@ public class FloatsTest extends TestCase {
     testReverse(new float[] {-1, 1, -2, 2}, 1, 3, new float[] {-1, -2, 1, 2});
   }
 
+  private static void testRotate(float[] input, int distance, float[] expectedOutput) {
+    input = Arrays.copyOf(input, input.length);
+    Floats.rotate(input, distance);
+    assertThat(input).isEqualTo(expectedOutput);
+  }
+
+  private static void testRotate(
+      float[] input, int distance, int fromIndex, int toIndex, float[] expectedOutput) {
+    input = Arrays.copyOf(input, input.length);
+    Floats.rotate(input, distance, fromIndex, toIndex);
+    assertThat(input).isEqualTo(expectedOutput);
+  }
+
+  public void testRotate() {
+    testRotate(new float[] {}, -1, new float[] {});
+    testRotate(new float[] {}, 0, new float[] {});
+    testRotate(new float[] {}, 1, new float[] {});
+
+    testRotate(new float[] {1}, -2, new float[] {1});
+    testRotate(new float[] {1}, -1, new float[] {1});
+    testRotate(new float[] {1}, 0, new float[] {1});
+    testRotate(new float[] {1}, 1, new float[] {1});
+    testRotate(new float[] {1}, 2, new float[] {1});
+
+    testRotate(new float[] {1, 2}, -3, new float[] {2, 1});
+    testRotate(new float[] {1, 2}, -1, new float[] {2, 1});
+    testRotate(new float[] {1, 2}, -2, new float[] {1, 2});
+    testRotate(new float[] {1, 2}, 0, new float[] {1, 2});
+    testRotate(new float[] {1, 2}, 1, new float[] {2, 1});
+    testRotate(new float[] {1, 2}, 2, new float[] {1, 2});
+    testRotate(new float[] {1, 2}, 3, new float[] {2, 1});
+
+    testRotate(new float[] {1, 2, 3}, -5, new float[] {3, 1, 2});
+    testRotate(new float[] {1, 2, 3}, -4, new float[] {2, 3, 1});
+    testRotate(new float[] {1, 2, 3}, -3, new float[] {1, 2, 3});
+    testRotate(new float[] {1, 2, 3}, -2, new float[] {3, 1, 2});
+    testRotate(new float[] {1, 2, 3}, -1, new float[] {2, 3, 1});
+    testRotate(new float[] {1, 2, 3}, 0, new float[] {1, 2, 3});
+    testRotate(new float[] {1, 2, 3}, 1, new float[] {3, 1, 2});
+    testRotate(new float[] {1, 2, 3}, 2, new float[] {2, 3, 1});
+    testRotate(new float[] {1, 2, 3}, 3, new float[] {1, 2, 3});
+    testRotate(new float[] {1, 2, 3}, 4, new float[] {3, 1, 2});
+    testRotate(new float[] {1, 2, 3}, 5, new float[] {2, 3, 1});
+
+    testRotate(new float[] {1, 2, 3, 4}, -9, new float[] {2, 3, 4, 1});
+    testRotate(new float[] {1, 2, 3, 4}, -5, new float[] {2, 3, 4, 1});
+    testRotate(new float[] {1, 2, 3, 4}, -1, new float[] {2, 3, 4, 1});
+    testRotate(new float[] {1, 2, 3, 4}, 0, new float[] {1, 2, 3, 4});
+    testRotate(new float[] {1, 2, 3, 4}, 1, new float[] {4, 1, 2, 3});
+    testRotate(new float[] {1, 2, 3, 4}, 5, new float[] {4, 1, 2, 3});
+    testRotate(new float[] {1, 2, 3, 4}, 9, new float[] {4, 1, 2, 3});
+
+    testRotate(new float[] {1, 2, 3, 4, 5}, -6, new float[] {2, 3, 4, 5, 1});
+    testRotate(new float[] {1, 2, 3, 4, 5}, -4, new float[] {5, 1, 2, 3, 4});
+    testRotate(new float[] {1, 2, 3, 4, 5}, -3, new float[] {4, 5, 1, 2, 3});
+    testRotate(new float[] {1, 2, 3, 4, 5}, -1, new float[] {2, 3, 4, 5, 1});
+    testRotate(new float[] {1, 2, 3, 4, 5}, 0, new float[] {1, 2, 3, 4, 5});
+    testRotate(new float[] {1, 2, 3, 4, 5}, 1, new float[] {5, 1, 2, 3, 4});
+    testRotate(new float[] {1, 2, 3, 4, 5}, 3, new float[] {3, 4, 5, 1, 2});
+    testRotate(new float[] {1, 2, 3, 4, 5}, 4, new float[] {2, 3, 4, 5, 1});
+    testRotate(new float[] {1, 2, 3, 4, 5}, 6, new float[] {5, 1, 2, 3, 4});
+  }
+
+  public void testRotateIndexed() {
+    testRotate(new float[] {}, 0, 0, 0, new float[] {});
+
+    testRotate(new float[] {1}, 0, 0, 1, new float[] {1});
+    testRotate(new float[] {1}, 1, 0, 1, new float[] {1});
+    testRotate(new float[] {1}, 1, 1, 1, new float[] {1});
+
+    // Rotate the central 5 elements, leaving the ends as-is
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -6, 1, 6, new float[] {0, 2, 3, 4, 5, 1, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -1, 1, 6, new float[] {0, 2, 3, 4, 5, 1, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 0, 1, 6, new float[] {0, 1, 2, 3, 4, 5, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 5, 1, 6, new float[] {0, 1, 2, 3, 4, 5, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 14, 1, 6, new float[] {0, 2, 3, 4, 5, 1, 6});
+
+    // Rotate the first three elements
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -2, 0, 3, new float[] {2, 0, 1, 3, 4, 5, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -1, 0, 3, new float[] {1, 2, 0, 3, 4, 5, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 0, 0, 3, new float[] {0, 1, 2, 3, 4, 5, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 1, 0, 3, new float[] {2, 0, 1, 3, 4, 5, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 2, 0, 3, new float[] {1, 2, 0, 3, 4, 5, 6});
+
+    // Rotate the last four elements
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -6, 3, 7, new float[] {0, 1, 2, 5, 6, 3, 4});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -5, 3, 7, new float[] {0, 1, 2, 4, 5, 6, 3});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -4, 3, 7, new float[] {0, 1, 2, 3, 4, 5, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -3, 3, 7, new float[] {0, 1, 2, 6, 3, 4, 5});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -2, 3, 7, new float[] {0, 1, 2, 5, 6, 3, 4});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, -1, 3, 7, new float[] {0, 1, 2, 4, 5, 6, 3});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 0, 3, 7, new float[] {0, 1, 2, 3, 4, 5, 6});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 1, 3, 7, new float[] {0, 1, 2, 6, 3, 4, 5});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 2, 3, 7, new float[] {0, 1, 2, 5, 6, 3, 4});
+    testRotate(new float[] {0, 1, 2, 3, 4, 5, 6}, 3, 3, 7, new float[] {0, 1, 2, 4, 5, 6, 3});
+  }
+
   public void testSortDescending() {
     testSortDescending(new float[] {}, new float[] {});
     testSortDescending(new float[] {1}, new float[] {1});
@@ -349,15 +470,15 @@ public class FloatsTest extends TestCase {
     testSortDescending(new float[] {1, 3, 1}, new float[] {3, 1, 1});
     testSortDescending(new float[] {-1, 1, -2, 2}, new float[] {2, 1, -1, -2});
     testSortDescending(
-        new float[] {-1, 1, Float.NaN, -2, -0, 0, 2}, new float[] {Float.NaN, 2, 1, 0, -0, -1, -2});
+        new float[] {-1, 1, Float.NaN, -2, -0f, 0, 2},
+        new float[] {Float.NaN, 2, 1, 0, -0f, -1, -2});
   }
 
   private static void testSortDescending(float[] input, float[] expectedOutput) {
     input = Arrays.copyOf(input, input.length);
     Floats.sortDescending(input);
-    // GWT's Arrays.equals doesn't appear to handle NaN correctly, so test each element individually
     for (int i = 0; i < input.length; i++) {
-      assertEquals(0, Float.compare(expectedOutput[i], input[i]));
+      assertThat(input[i]).isEqualTo(expectedOutput[i]);
     }
   }
 
@@ -365,9 +486,8 @@ public class FloatsTest extends TestCase {
       float[] input, int fromIndex, int toIndex, float[] expectedOutput) {
     input = Arrays.copyOf(input, input.length);
     Floats.sortDescending(input, fromIndex, toIndex);
-    // GWT's Arrays.equals doesn't appear to handle NaN correctly, so test each element individually
     for (int i = 0; i < input.length; i++) {
-      assertEquals(0, Float.compare(expectedOutput[i], input[i]));
+      assertThat(input[i]).isEqualTo(expectedOutput[i]);
     }
   }
 
@@ -382,6 +502,7 @@ public class FloatsTest extends TestCase {
         new float[] {-1, 1, Float.NaN, -2, 2}, 1, 4, new float[] {-1, Float.NaN, 1, -2, 2});
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // SerializableTester
   public void testStringConverterSerialization() {
     SerializableTester.reserializeAndAssert(Floats.stringConverter());
@@ -390,17 +511,17 @@ public class FloatsTest extends TestCase {
   public void testToArray() {
     // need explicit type parameter to avoid javac warning!?
     List<Float> none = Arrays.<Float>asList();
-    assertTrue(Arrays.equals(EMPTY, Floats.toArray(none)));
+    assertThat(Floats.toArray(none)).isEqualTo(EMPTY);
 
     List<Float> one = Arrays.asList((float) 1);
-    assertTrue(Arrays.equals(ARRAY1, Floats.toArray(one)));
+    assertThat(Floats.toArray(one)).isEqualTo(ARRAY1);
 
     float[] array = {(float) 0, (float) 1, (float) 3};
 
     List<Float> three = Arrays.asList((float) 0, (float) 1, (float) 3);
-    assertTrue(Arrays.equals(array, Floats.toArray(three)));
+    assertThat(Floats.toArray(three)).isEqualTo(array);
 
-    assertTrue(Arrays.equals(array, Floats.toArray(Floats.asList(array))));
+    assertThat(Floats.toArray(Floats.asList(array))).isEqualTo(array);
   }
 
   public void testToArray_threadSafe() {
@@ -410,21 +531,17 @@ public class FloatsTest extends TestCase {
         Collection<Float> misleadingSize = Helpers.misleadingSizeCollection(delta);
         misleadingSize.addAll(list);
         float[] arr = Floats.toArray(misleadingSize);
-        assertEquals(i, arr.length);
+        assertThat(arr.length).isEqualTo(i);
         for (int j = 0; j < i; j++) {
-          assertEquals(VALUES[j], arr[j]);
+          assertThat(arr[j]).isEqualTo(VALUES[j]);
         }
       }
     }
   }
 
   public void testToArray_withNull() {
-    List<Float> list = Arrays.asList((float) 0, (float) 1, null);
-    try {
-      Floats.toArray(list);
-      fail();
-    } catch (NullPointerException expected) {
-    }
+    List<@Nullable Float> list = Arrays.asList((float) 0, (float) 1, null);
+    assertThrows(NullPointerException.class, () -> Floats.toArray(list));
   }
 
   public void testToArray_withConversion() {
@@ -437,19 +554,20 @@ public class FloatsTest extends TestCase {
     List<Long> longs = Arrays.asList((long) 0, (long) 1, (long) 2);
     List<Double> doubles = Arrays.asList((double) 0, (double) 1, (double) 2);
 
-    assertTrue(Arrays.equals(array, Floats.toArray(bytes)));
-    assertTrue(Arrays.equals(array, Floats.toArray(shorts)));
-    assertTrue(Arrays.equals(array, Floats.toArray(ints)));
-    assertTrue(Arrays.equals(array, Floats.toArray(floats)));
-    assertTrue(Arrays.equals(array, Floats.toArray(longs)));
-    assertTrue(Arrays.equals(array, Floats.toArray(doubles)));
+    assertThat(Floats.toArray(bytes)).isEqualTo(array);
+    assertThat(Floats.toArray(shorts)).isEqualTo(array);
+    assertThat(Floats.toArray(ints)).isEqualTo(array);
+    assertThat(Floats.toArray(floats)).isEqualTo(array);
+    assertThat(Floats.toArray(longs)).isEqualTo(array);
+    assertThat(Floats.toArray(doubles)).isEqualTo(array);
   }
 
+  @J2ktIncompatible // b/239034072: Kotlin varargs copy parameter arrays.
   public void testAsList_isAView() {
     float[] array = {(float) 0, (float) 1};
     List<Float> list = Floats.asList(array);
     list.set(0, (float) 2);
-    assertTrue(Arrays.equals(new float[] {(float) 2, (float) 1}, array));
+    assertThat(array).isEqualTo(new float[] {(float) 2, (float) 1});
     array[1] = (float) 3;
     assertThat(list).containsExactly((float) 2, (float) 3).inOrder();
   }
@@ -461,29 +579,28 @@ public class FloatsTest extends TestCase {
 
     // Make sure it returned a copy
     list.set(0, (float) 4);
-    assertTrue(Arrays.equals(new float[] {(float) 0, (float) 1, (float) 2}, newArray));
+    assertThat(newArray).isEqualTo(new float[] {(float) 0, (float) 1, (float) 2});
     newArray[1] = (float) 5;
-    assertEquals((float) 1, (float) list.get(1));
+    assertThat((float) list.get(1)).isEqualTo((float) 1);
   }
 
   // This test stems from a real bug found by andrewk
   public void testAsList_subList_toArray_roundTrip() {
     float[] array = {(float) 0, (float) 1, (float) 2, (float) 3};
     List<Float> list = Floats.asList(array);
-    assertTrue(
-        Arrays.equals(new float[] {(float) 1, (float) 2}, Floats.toArray(list.subList(1, 3))));
-    assertTrue(Arrays.equals(new float[] {}, Floats.toArray(list.subList(2, 2))));
+    assertThat(Floats.toArray(list.subList(1, 3))).isEqualTo(new float[] {(float) 1, (float) 2});
+    assertThat(Floats.toArray(list.subList(2, 2))).isEmpty();
   }
 
   public void testAsListEmpty() {
-    assertSame(Collections.emptyList(), Floats.asList(EMPTY));
+    assertThat(Floats.asList(EMPTY)).isSameInstanceAs(Collections.emptyList());
   }
 
   /**
    * A reference implementation for {@code tryParse} that just catches the exception from {@link
    * Float#valueOf}.
    */
-  private static Float referenceTryParse(String input) {
+  private static @Nullable Float referenceTryParse(String input) {
     if (input.trim().length() < input.length()) {
       return null;
     }
@@ -496,12 +613,12 @@ public class FloatsTest extends TestCase {
 
   @GwtIncompatible // Floats.tryParse
   private static void checkTryParse(String input) {
-    assertEquals(referenceTryParse(input), Floats.tryParse(input));
+    assertThat(Floats.tryParse(input)).isEqualTo(referenceTryParse(input));
   }
 
   @GwtIncompatible // Floats.tryParse
   private static void checkTryParse(float expected, String input) {
-    assertEquals(Float.valueOf(expected), Floats.tryParse(input));
+    assertThat(Floats.tryParse(input)).isEqualTo(Float.valueOf(expected));
   }
 
   @GwtIncompatible // Floats.tryParse
@@ -542,6 +659,7 @@ public class FloatsTest extends TestCase {
     }
   }
 
+  @J2ktIncompatible // hexadecimal floats
   @GwtIncompatible // Floats.tryParse
   public void testTryParseOfToHexStringIsOriginal() {
     for (float f : NUMBERS) {
@@ -583,11 +701,12 @@ public class FloatsTest extends TestCase {
   @GwtIncompatible // Floats.tryParse
   public void testTryParseFailures() {
     for (String badInput : BAD_TRY_PARSE_INPUTS) {
-      assertEquals(referenceTryParse(badInput), Floats.tryParse(badInput));
-      assertNull(Floats.tryParse(badInput));
+      assertThat(Floats.tryParse(badInput)).isEqualTo(referenceTryParse(badInput));
+      assertThat(Floats.tryParse(badInput)).isNull();
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // NullPointerTester
   public void testNulls() {
     new NullPointerTester().testAllPublicStaticMethods(Floats.class);
@@ -596,39 +715,37 @@ public class FloatsTest extends TestCase {
   @GwtIncompatible // Float.toString returns different value in GWT.
   public void testStringConverter_convert() {
     Converter<String, Float> converter = Floats.stringConverter();
-    assertEquals((Float) 1.0f, converter.convert("1.0"));
-    assertEquals((Float) 0.0f, converter.convert("0.0"));
-    assertEquals((Float) (-1.0f), converter.convert("-1.0"));
-    assertEquals((Float) 1.0f, converter.convert("1"));
-    assertEquals((Float) 0.0f, converter.convert("0"));
-    assertEquals((Float) (-1.0f), converter.convert("-1"));
-    assertEquals((Float) 1e6f, converter.convert("1e6"));
-    assertEquals((Float) 1e-6f, converter.convert("1e-6"));
+    assertThat(converter.convert("1.0")).isEqualTo((Float) 1.0f);
+    assertThat(converter.convert("0.0")).isEqualTo((Float) 0.0f);
+    assertThat(converter.convert("-1.0")).isEqualTo((Float) (-1.0f));
+    assertThat(converter.convert("1")).isEqualTo((Float) 1.0f);
+    assertThat(converter.convert("0")).isEqualTo((Float) 0.0f);
+    assertThat(converter.convert("-1")).isEqualTo((Float) (-1.0f));
+    assertThat(converter.convert("1e6")).isEqualTo((Float) 1e6f);
+    assertThat(converter.convert("1e-6")).isEqualTo((Float) 1e-6f);
   }
 
   public void testStringConverter_convertError() {
-    try {
-      Floats.stringConverter().convert("notanumber");
-      fail();
-    } catch (NumberFormatException expected) {
-    }
+    assertThrows(NumberFormatException.class, () -> Floats.stringConverter().convert("notanumber"));
   }
 
   public void testStringConverter_nullConversions() {
-    assertNull(Floats.stringConverter().convert(null));
-    assertNull(Floats.stringConverter().reverse().convert(null));
+    assertThat(Floats.stringConverter().convert(null)).isNull();
+    assertThat(Floats.stringConverter().reverse().convert(null)).isNull();
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // Float.toString returns different value in GWT.
   public void testStringConverter_reverse() {
     Converter<String, Float> converter = Floats.stringConverter();
-    assertEquals("1.0", converter.reverse().convert(1.0f));
-    assertEquals("0.0", converter.reverse().convert(0.0f));
-    assertEquals("-1.0", converter.reverse().convert(-1.0f));
-    assertEquals("1000000.0", converter.reverse().convert(1e6f));
-    assertEquals("1.0E-6", converter.reverse().convert(1e-6f));
+    assertThat(converter.reverse().convert(1.0f)).isEqualTo("1.0");
+    assertThat(converter.reverse().convert(0.0f)).isEqualTo("0.0");
+    assertThat(converter.reverse().convert(-1.0f)).isEqualTo("-1.0");
+    assertThat(converter.reverse().convert(1e6f)).isEqualTo("1000000.0");
+    assertThat(converter.reverse().convert(1e-6f)).isEqualTo("1.0E-6");
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // NullPointerTester
   public void testStringConverter_nullPointerTester() throws Exception {
     NullPointerTester tester = new NullPointerTester();
@@ -637,11 +754,7 @@ public class FloatsTest extends TestCase {
 
   @GwtIncompatible
   public void testTryParse_withNullNoGwt() {
-    assertNull(Floats.tryParse("null"));
-    try {
-      Floats.tryParse(null);
-      fail("Expected NPE");
-    } catch (NullPointerException expected) {
-    }
+    assertThat(Floats.tryParse("null")).isNull();
+    assertThrows(NullPointerException.class, () -> Floats.tryParse(null));
   }
 }

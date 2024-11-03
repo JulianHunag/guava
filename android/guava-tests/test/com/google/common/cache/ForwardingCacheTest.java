@@ -34,7 +34,7 @@ public class ForwardingCacheTest extends TestCase {
   private Cache<String, Boolean> forward;
   private Cache<String, Boolean> mock;
 
-  @SuppressWarnings("unchecked") // mock
+  @SuppressWarnings({"unchecked", "DoNotMock"}) // mock
   @Override
   public void setUp() throws Exception {
     super.setUp();
@@ -104,7 +104,7 @@ public class ForwardingCacheTest extends TestCase {
   private static class OnlyGet<K, V> extends ForwardingCache<K, V> {
     @Override
     protected Cache<K, V> delegate() {
-      return null;
+      throw new AssertionError();
     }
   }
 }

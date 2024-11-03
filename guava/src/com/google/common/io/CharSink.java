@@ -15,9 +15,10 @@
 package com.google.common.io;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.StandardSystemProperty.LINE_SEPARATOR;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -50,7 +51,9 @@ import java.util.stream.Stream;
  * @since 14.0
  * @author Colin Decker
  */
+@J2ktIncompatible
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 public abstract class CharSink {
 
   /** Constructor for use by subclasses. */
@@ -92,15 +95,8 @@ public abstract class CharSink {
   public void write(CharSequence charSequence) throws IOException {
     checkNotNull(charSequence);
 
-    Closer closer = Closer.create();
-    try {
-      Writer out = closer.register(openStream());
+    try (Writer out = openStream()) {
       out.append(charSequence);
-      out.flush(); // https://code.google.com/p/guava-libraries/issues/detail?id=1330
-    } catch (Throwable e) {
-      throw closer.rethrow(e);
-    } finally {
-      closer.close();
     }
   }
 
@@ -132,11 +128,10 @@ public abstract class CharSink {
    * writeLines(lines, System.getProperty("line.separator"))}.
    *
    * @throws IOException if an I/O error occurs while writing to this sink
-   * @since 22.0
+   * @since 22.0 (but only since 33.4.0 in the Android flavor)
    */
-  @Beta
   public void writeLines(Stream<? extends CharSequence> lines) throws IOException {
-    writeLines(lines, System.getProperty("line.separator"));
+    writeLines(lines, LINE_SEPARATOR.value());
   }
 
   /**
@@ -144,9 +139,8 @@ public abstract class CharSink {
    * the given line separator.
    *
    * @throws IOException if an I/O error occurs while writing to this sink
-   * @since 22.0
+   * @since 22.0 (but only since 33.4.0 in the Android flavor)
    */
-  @Beta
   public void writeLines(Stream<? extends CharSequence> lines, String lineSeparator)
       throws IOException {
     writeLines(lines.iterator(), lineSeparator);
@@ -175,16 +169,8 @@ public abstract class CharSink {
   public long writeFrom(Readable readable) throws IOException {
     checkNotNull(readable);
 
-    Closer closer = Closer.create();
-    try {
-      Writer out = closer.register(openStream());
-      long written = CharStreams.copy(readable, out);
-      out.flush(); // https://code.google.com/p/guava-libraries/issues/detail?id=1330
-      return written;
-    } catch (Throwable e) {
-      throw closer.rethrow(e);
-    } finally {
-      closer.close();
+    try (Writer out = openStream()) {
+      return CharStreams.copy(readable, out);
     }
   }
 }

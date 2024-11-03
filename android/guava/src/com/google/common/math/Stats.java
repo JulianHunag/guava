@@ -24,15 +24,19 @@ import static java.lang.Double.NaN;
 import static java.lang.Double.doubleToLongBits;
 import static java.lang.Double.isNaN;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Iterator;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import java.util.stream.Collector;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import javax.annotation.CheckForNull;
 
 /**
  * A bundle of statistical summary values -- sum, count, mean/average, min and max, and several
@@ -51,15 +55,16 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * <p>Static convenience methods called {@code meanOf} are also provided for users who wish to
  * calculate <i>only</i> the mean.
  *
- * <p><b>Java 8 users:</b> If you are not using any of the variance statistics, you may wish to use
+ * <p><b>Java 8+ users:</b> If you are not using any of the variance statistics, you may wish to use
  * built-in JDK libraries instead of this class.
  *
  * @author Pete Gillin
  * @author Kevin Bourrillion
  * @since 20.0
  */
-@Beta
+@J2ktIncompatible
 @GwtIncompatible
+@ElementTypesAreNonnullByDefault
 public final class Stats implements Serializable {
 
   private final long count;
@@ -103,7 +108,8 @@ public final class Stats implements Serializable {
   }
 
   /**
-   * Returns statistics over a dataset containing the given values.
+   * Returns statistics over a dataset containing the given values. The iterator will be completely
+   * consumed by this method.
    *
    * @param values a series of values, which will be converted to {@code double} values (this may
    *     cause loss of precision)
@@ -120,9 +126,9 @@ public final class Stats implements Serializable {
    * @param values a series of values
    */
   public static Stats of(double... values) {
-    StatsAccumulator acummulator = new StatsAccumulator();
-    acummulator.addAll(values);
-    return acummulator.snapshot();
+    StatsAccumulator accumulator = new StatsAccumulator();
+    accumulator.addAll(values);
+    return accumulator.snapshot();
   }
 
   /**
@@ -131,9 +137,9 @@ public final class Stats implements Serializable {
    * @param values a series of values
    */
   public static Stats of(int... values) {
-    StatsAccumulator acummulator = new StatsAccumulator();
-    acummulator.addAll(values);
-    return acummulator.snapshot();
+    StatsAccumulator accumulator = new StatsAccumulator();
+    accumulator.addAll(values);
+    return accumulator.snapshot();
   }
 
   /**
@@ -143,9 +149,89 @@ public final class Stats implements Serializable {
    *     cause loss of precision for longs of magnitude over 2^53 (slightly over 9e15))
    */
   public static Stats of(long... values) {
-    StatsAccumulator acummulator = new StatsAccumulator();
-    acummulator.addAll(values);
-    return acummulator.snapshot();
+    StatsAccumulator accumulator = new StatsAccumulator();
+    accumulator.addAll(values);
+    return accumulator.snapshot();
+  }
+
+  /**
+   * Returns statistics over a dataset containing the given values. The stream will be completely
+   * consumed by this method.
+   *
+   * <p>If you have a {@code Stream<Double>} rather than a {@code DoubleStream}, you should collect
+   * the values using {@link #toStats()} instead.
+   *
+   * @param values a series of values
+   * @since NEXT (but since 28.2 in the JRE flavor)
+   */
+  @SuppressWarnings("Java7ApiChecker")
+  @IgnoreJRERequirement // Users will use this only if they're already using streams.
+  public static Stats of(DoubleStream values) {
+    return values
+        .collect(StatsAccumulator::new, StatsAccumulator::add, StatsAccumulator::addAll)
+        .snapshot();
+  }
+
+  /**
+   * Returns statistics over a dataset containing the given values. The stream will be completely
+   * consumed by this method.
+   *
+   * <p>If you have a {@code Stream<Integer>} rather than an {@code IntStream}, you should collect
+   * the values using {@link #toStats()} instead.
+   *
+   * @param values a series of values
+   * @since NEXT (but since 28.2 in the JRE flavor)
+   */
+  @SuppressWarnings("Java7ApiChecker")
+  @IgnoreJRERequirement // Users will use this only if they're already using streams.
+  public static Stats of(IntStream values) {
+    return values
+        .collect(StatsAccumulator::new, StatsAccumulator::add, StatsAccumulator::addAll)
+        .snapshot();
+  }
+
+  /**
+   * Returns statistics over a dataset containing the given values. The stream will be completely
+   * consumed by this method.
+   *
+   * <p>If you have a {@code Stream<Long>} rather than a {@code LongStream}, you should collect the
+   * values using {@link #toStats()} instead.
+   *
+   * @param values a series of values, which will be converted to {@code double} values (this may
+   *     cause loss of precision for longs of magnitude over 2^53 (slightly over 9e15))
+   * @since NEXT (but since 28.2 in the JRE flavor)
+   */
+  @SuppressWarnings("Java7ApiChecker")
+  @IgnoreJRERequirement // Users will use this only if they're already using streams.
+  public static Stats of(LongStream values) {
+    return values
+        .collect(StatsAccumulator::new, StatsAccumulator::add, StatsAccumulator::addAll)
+        .snapshot();
+  }
+
+  /**
+   * Returns a {@link Collector} which accumulates statistics from a {@link java.util.stream.Stream}
+   * of any type of boxed {@link Number} into a {@link Stats}. Use by calling {@code
+   * boxedNumericStream.collect(toStats())}. The numbers will be converted to {@code double} values
+   * (which may cause loss of precision).
+   *
+   * <p>If you have any of the primitive streams {@code DoubleStream}, {@code IntStream}, or {@code
+   * LongStream}, you should use the factory method {@link #of} instead.
+   *
+   * @since NEXT (but since 28.2 in the JRE flavor)
+   */
+  @SuppressWarnings("Java7ApiChecker")
+  @IgnoreJRERequirement // Users will use this only if they're already using streams.
+  public static Collector<Number, StatsAccumulator, Stats> toStats() {
+    return Collector.of(
+        StatsAccumulator::new,
+        (a, x) -> a.add(x.doubleValue()),
+        (l, r) -> {
+          l.addAll(r);
+          return l;
+        },
+        StatsAccumulator::snapshot,
+        Collector.Characteristics.UNORDERED);
   }
 
   /** Returns the number of values. */
@@ -169,8 +255,8 @@ public final class Stats implements Serializable {
    * If it contains {@link Double#NEGATIVE_INFINITY} and finite values only or {@link
    * Double#NEGATIVE_INFINITY} only, the result is {@link Double#NEGATIVE_INFINITY}.
    *
-   * <p>If you only want to calculate the mean, use {#meanOf} instead of creating a {@link Stats}
-   * instance.
+   * <p>If you only want to calculate the mean, use {@link #meanOf} instead of creating a {@link
+   * Stats} instance.
    *
    * @throws IllegalStateException if the dataset is empty
    */
@@ -339,7 +425,7 @@ public final class Stats implements Serializable {
    * {@code strictfp}-like semantics.)
    */
   @Override
-  public boolean equals(@NullableDecl Object obj) {
+  public boolean equals(@CheckForNull Object obj) {
     if (obj == null) {
       return false;
     }
@@ -347,11 +433,11 @@ public final class Stats implements Serializable {
       return false;
     }
     Stats other = (Stats) obj;
-    return (count == other.count)
-        && (doubleToLongBits(mean) == doubleToLongBits(other.mean))
-        && (doubleToLongBits(sumOfSquaresOfDeltas) == doubleToLongBits(other.sumOfSquaresOfDeltas))
-        && (doubleToLongBits(min) == doubleToLongBits(other.min))
-        && (doubleToLongBits(max) == doubleToLongBits(other.max));
+    return count == other.count
+        && doubleToLongBits(mean) == doubleToLongBits(other.mean)
+        && doubleToLongBits(sumOfSquaresOfDeltas) == doubleToLongBits(other.sumOfSquaresOfDeltas)
+        && doubleToLongBits(min) == doubleToLongBits(other.min)
+        && doubleToLongBits(max) == doubleToLongBits(other.max);
   }
 
   /**

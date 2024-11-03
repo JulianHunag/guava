@@ -17,6 +17,7 @@
 package com.google.common.collect.testing.google;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import org.junit.Ignore;
 
 /**
@@ -27,6 +28,7 @@ import org.junit.Ignore;
  */
 @GwtCompatible
 @Ignore // Affects only Android test runner, which respects JUnit 4 annotations on JUnit 3 tests.
+@SuppressWarnings("JUnit4ClassUsedInJUnit3")
 public class MultisetSetCountUnconditionallyTester<E> extends AbstractMultisetSetCountTester<E> {
   @Override
   void setCountCheckReturnValue(E element, int count) {
@@ -41,6 +43,7 @@ public class MultisetSetCountUnconditionallyTester<E> extends AbstractMultisetSe
     setCount(element, count);
   }
 
+  @CanIgnoreReturnValue
   private int setCount(E element, int count) {
     return getMultiset().setCount(element, count);
   }

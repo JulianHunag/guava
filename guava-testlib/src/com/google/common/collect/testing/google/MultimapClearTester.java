@@ -20,6 +20,7 @@ import static com.google.common.collect.testing.Helpers.assertEmpty;
 import static com.google.common.collect.testing.features.CollectionSize.ZERO;
 import static com.google.common.collect.testing.features.MapFeature.SUPPORTS_REMOVE;
 import static com.google.common.collect.testing.google.GoogleHelpers.assertEmpty;
+import static com.google.common.collect.testing.google.ReflectionFreeAssertThrows.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.Multimap;
@@ -37,15 +38,12 @@ import org.junit.Ignore;
  */
 @GwtCompatible
 @Ignore // Affects only Android test runner, which respects JUnit 4 annotations on JUnit 3 tests.
+@SuppressWarnings("JUnit4ClassUsedInJUnit3")
 public class MultimapClearTester<K, V> extends AbstractMultimapTester<K, V, Multimap<K, V>> {
   @CollectionSize.Require(absent = ZERO)
   @MapFeature.Require(absent = SUPPORTS_REMOVE)
   public void testClearUnsupported() {
-    try {
-      multimap().clear();
-      fail("Expected UnsupportedOperationException");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> multimap().clear());
   }
 
   private void assertCleared() {

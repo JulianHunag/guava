@@ -16,10 +16,15 @@
 
 package com.google.common.collect;
 
+import static java.lang.System.arraycopy;
+
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Implementation of {@link ImmutableList} backed by a simple array.
@@ -28,6 +33,7 @@ import java.util.Spliterators;
  */
 @GwtCompatible(serializable = true, emulated = true)
 @SuppressWarnings("serial") // uses writeReplace(), not default serialization
+@ElementTypesAreNonnullByDefault
 class RegularImmutableList<E> extends ImmutableList<E> {
   static final ImmutableList<Object> EMPTY = new RegularImmutableList<>(new Object[0]);
 
@@ -63,8 +69,8 @@ class RegularImmutableList<E> extends ImmutableList<E> {
   }
 
   @Override
-  int copyIntoArray(Object[] dst, int dstOff) {
-    System.arraycopy(array, 0, dst, dstOff, array.length);
+  int copyIntoArray(@Nullable Object[] dst, int dstOff) {
+    arraycopy(array, 0, dst, dstOff, array.length);
     return dstOff + array.length;
   }
 
@@ -80,7 +86,7 @@ class RegularImmutableList<E> extends ImmutableList<E> {
   public UnmodifiableListIterator<E> listIterator(int index) {
     // for performance
     // The fake cast to E is safe because the creation methods only allow E's
-    return (UnmodifiableListIterator<E>) Iterators.forArray(array, 0, array.length, index);
+    return (UnmodifiableListIterator<E>) Iterators.forArrayWithPosition(array, index);
   }
 
   @Override
@@ -89,4 +95,13 @@ class RegularImmutableList<E> extends ImmutableList<E> {
   }
 
   // TODO(lowasser): benchmark optimizations for equals() and see if they're worthwhile
+
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
+  @Override
+  @J2ktIncompatible // serialization
+  @GwtIncompatible // serialization
+  Object writeReplace() {
+    return super.writeReplace();
+  }
 }

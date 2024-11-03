@@ -18,9 +18,9 @@ package com.google.common.io;
 
 import static com.google.common.io.SourceSinkFactory.ByteSinkFactory;
 import static com.google.common.io.SourceSinkFactory.CharSinkFactory;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertArrayEquals;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -31,12 +31,12 @@ import junit.framework.TestSuite;
 
 /**
  * A generator of {@code TestSuite} instances for testing {@code ByteSink} implementations.
- * Generates tests of a all methods on a {@code ByteSink} given various inputs written to it as well
+ * Generates tests of all methods on a {@code ByteSink} given various inputs written to it as well
  * as sub-suites for testing the {@code CharSink} view in the same way.
  *
  * @author Colin Decker
  */
-@AndroidIncompatible // Android doesn't understand tests that lack default constructors.
+@AndroidIncompatible // TODO(b/230620681): Make this available (even though we won't run it).
 public class ByteSinkTester extends SourceSinkTester<ByteSink, byte[], ByteSinkFactory> {
 
   private static final ImmutableList<Method> testMethods = getTestMethods(ByteSinkTester.class);
@@ -53,7 +53,7 @@ public class ByteSinkTester extends SourceSinkTester<ByteSink, byte[], ByteSinkF
 
   private static TestSuite suiteForString(
       String name, ByteSinkFactory factory, String string, String desc) {
-    byte[] bytes = string.getBytes(Charsets.UTF_8);
+    byte[] bytes = string.getBytes(UTF_8);
     TestSuite suite = suiteForBytes(name, factory, desc, bytes);
     CharSinkFactory charSinkFactory = SourceSinkFactories.asCharSinkFactory(factory);
     suite.addTest(

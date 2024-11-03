@@ -20,6 +20,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,7 +28,8 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import org.checkerframework.checker.nullness.compatqual.NullableDecl;
+import javax.annotation.CheckForNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * An immutable sorted set with one or more elements. TODO(jlevy): Consider separate class for a
@@ -37,7 +39,8 @@ import org.checkerframework.checker.nullness.compatqual.NullableDecl;
  * @author Louis Wasserman
  */
 @GwtCompatible(serializable = true, emulated = true)
-@SuppressWarnings("serial")
+@SuppressWarnings({"serial", "rawtypes"})
+@ElementTypesAreNonnullByDefault
 final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   static final RegularImmutableSortedSet<Comparable> NATURAL_EMPTY_SET =
       new RegularImmutableSortedSet<>(ImmutableList.<Comparable>of(), Ordering.natural());
@@ -50,6 +53,8 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   }
 
   @Override
+  @CheckForNull
+  @Nullable
   Object[] internalArray() {
     return elements.internalArray();
   }
@@ -81,7 +86,7 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   }
 
   @Override
-  public boolean contains(@NullableDecl Object o) {
+  public boolean contains(@CheckForNull Object o) {
     try {
       return o != null && unsafeBinarySearch(o) >= 0;
     } catch (ClassCastException e) {
@@ -151,12 +156,12 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   }
 
   @Override
-  int copyIntoArray(Object[] dst, int offset) {
+  int copyIntoArray(@Nullable Object[] dst, int offset) {
     return elements.copyIntoArray(dst, offset);
   }
 
   @Override
-  public boolean equals(@NullableDecl Object object) {
+  public boolean equals(@CheckForNull Object object) {
     if (object == this) {
       return true;
     }
@@ -209,24 +214,28 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   }
 
   @Override
+  @CheckForNull
   public E lower(E element) {
     int index = headIndex(element, false) - 1;
     return (index == -1) ? null : elements.get(index);
   }
 
   @Override
+  @CheckForNull
   public E floor(E element) {
     int index = headIndex(element, true) - 1;
     return (index == -1) ? null : elements.get(index);
   }
 
   @Override
+  @CheckForNull
   public E ceiling(E element) {
     int index = tailIndex(element, true);
     return (index == size()) ? null : elements.get(index);
   }
 
   @Override
+  @CheckForNull
   public E higher(E element) {
     int index = tailIndex(element, false);
     return (index == size()) ? null : elements.get(index);
@@ -278,7 +287,7 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
     if (newFromIndex == 0 && newToIndex == size()) {
       return this;
     } else if (newFromIndex < newToIndex) {
-      return new RegularImmutableSortedSet<E>(
+      return new RegularImmutableSortedSet<>(
           elements.subList(newFromIndex, newToIndex), comparator);
     } else {
       return emptySet(comparator);
@@ -286,7 +295,7 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   }
 
   @Override
-  int indexOf(@NullableDecl Object target) {
+  int indexOf(@CheckForNull Object target) {
     if (target == null) {
       return -1;
     }
@@ -310,5 +319,14 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
     return isEmpty()
         ? emptySet(reversedOrder)
         : new RegularImmutableSortedSet<E>(elements.reverse(), reversedOrder);
+  }
+
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
+  @Override
+  @J2ktIncompatible // serialization
+  @GwtIncompatible // serialization
+  Object writeReplace() {
+    return super.writeReplace();
   }
 }

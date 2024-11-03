@@ -16,10 +16,12 @@
 
 package com.google.common.collect;
 
+import static com.google.common.collect.ReflectionFreeAssertThrows.assertThrows;
 import static com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Function;
 import com.google.common.testing.NullPointerTester;
 import java.util.Map;
@@ -27,10 +29,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import junit.framework.TestCase;
 
-/** @author Charles Fry */
+/**
+ * @author Charles Fry
+ */
 @GwtCompatible(emulated = true)
+@J2ktIncompatible // MapMaker
 public class MapMakerTest extends TestCase {
-
   @GwtIncompatible // NullPointerTester
   public void testNullParameters() throws Exception {
     NullPointerTester tester = new NullPointerTester();
@@ -57,31 +61,24 @@ public class MapMakerTest extends TestCase {
    * anywhere else
    */
 
-  /** Tests for the builder. */
-  public static class MakerTest extends TestCase {
-    public void testInitialCapacity_negative() {
-      MapMaker maker = new MapMaker();
-      try {
-        maker.initialCapacity(-1);
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-    }
+  public void testInitialCapacity_negative() {
+    MapMaker maker = new MapMaker();
+    assertThrows(IllegalArgumentException.class, () -> maker.initialCapacity(-1));
+  }
 
-    // TODO(cpovirk): enable when ready
-    public void xtestInitialCapacity_setTwice() {
-      MapMaker maker = new MapMaker().initialCapacity(16);
-      try {
-        // even to the same value is not allowed
-        maker.initialCapacity(16);
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
+  // TODO(cpovirk): enable when ready (apparently after a change to our GWT emulation)
+  public void xtestInitialCapacity_setTwice() {
+    MapMaker maker = new MapMaker().initialCapacity(16);
+    try {
+      // even to the same value is not allowed
+      maker.initialCapacity(16);
+      fail();
+    } catch (IllegalStateException expected) {
     }
+  }
 
-    public void testReturnsPlainConcurrentHashMapWhenPossible() {
-      Map<?, ?> map = new MapMaker().initialCapacity(5).makeMap();
-      assertTrue(map instanceof ConcurrentHashMap);
-    }
+  public void testReturnsPlainConcurrentHashMapWhenPossible() {
+    Map<?, ?> map = new MapMaker().initialCapacity(5).makeMap();
+    assertTrue(map instanceof ConcurrentHashMap);
   }
 }

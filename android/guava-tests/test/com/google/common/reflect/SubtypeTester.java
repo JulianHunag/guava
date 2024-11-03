@@ -18,6 +18,7 @@ package com.google.common.reflect;
 
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import com.google.errorprone.annotations.RequiredModifiers;
 import java.lang.annotation.ElementType;
@@ -29,6 +30,7 @@ import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.Comparator;
 import javax.lang.model.element.Modifier;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Tester of subtyping relationships between two types.
@@ -77,18 +79,18 @@ abstract class SubtypeTester implements Cloneable {
     boolean suppressGetSupertype() default false;
   }
 
-  private Method method = null;
+  private @Nullable Method method = null;
 
   /** Call this in a {@link TestSubtype} public method asserting subtype relationship. */
   final <T> T isSubtype(T sub) {
     Type returnType = method.getGenericReturnType();
     Type paramType = getOnlyParameterType();
     TestSubtype spec = method.getAnnotation(TestSubtype.class);
-    assertThat(TypeToken.of(paramType).isSubtypeOf(returnType))
-        .named("%s is subtype of %s", paramType, returnType)
+    assertWithMessage("%s is subtype of %s", paramType, returnType)
+        .that(TypeToken.of(paramType).isSubtypeOf(returnType))
         .isTrue();
-    assertThat(TypeToken.of(returnType).isSupertypeOf(paramType))
-        .named("%s is supertype of %s", returnType, paramType)
+    assertWithMessage("%s is supertype of %s", returnType, paramType)
+        .that(TypeToken.of(returnType).isSupertypeOf(paramType))
         .isTrue();
     if (!spec.suppressGetSubtype()) {
       assertThat(getSubtype(returnType, TypeToken.of(paramType).getRawType())).isEqualTo(paramType);
@@ -104,15 +106,15 @@ abstract class SubtypeTester implements Cloneable {
    * Call this in a {@link TestSubtype} public method asserting that subtype relationship does not
    * hold.
    */
-  final <X> X notSubtype(@SuppressWarnings("unused") Object sub) {
+  final <X> @Nullable X notSubtype(@SuppressWarnings("unused") Object sub) {
     Type returnType = method.getGenericReturnType();
     Type paramType = getOnlyParameterType();
     TestSubtype spec = method.getAnnotation(TestSubtype.class);
-    assertThat(TypeToken.of(paramType).isSubtypeOf(returnType))
-        .named("%s is subtype of %s", paramType, returnType)
+    assertWithMessage("%s is subtype of %s", paramType, returnType)
+        .that(TypeToken.of(paramType).isSubtypeOf(returnType))
         .isFalse();
-    assertThat(TypeToken.of(returnType).isSupertypeOf(paramType))
-        .named("%s is supertype of %s", returnType, paramType)
+    assertWithMessage("%s is supertype of %s", returnType, paramType)
+        .that(TypeToken.of(returnType).isSupertypeOf(paramType))
         .isFalse();
     if (!spec.suppressGetSubtype()) {
       try {

@@ -16,6 +16,8 @@
 
 package com.google.common.io;
 
+import static org.junit.Assert.assertThrows;
+
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import java.io.EOFException;
@@ -116,13 +118,9 @@ public class CharStreamsTest extends IoTestCase {
     assertEquals("ab", sb.toString());
   }
 
-  public void testSkipFully_EOF() throws IOException {
+  public void testSkipFully_eof() throws IOException {
     Reader reader = new StringReader("abcde");
-    try {
-      CharStreams.skipFully(reader, 6);
-      fail("expected EOFException");
-    } catch (EOFException expected) {
-    }
+    assertThrows(EOFException.class, () -> CharStreams.skipFully(reader, 6));
   }
 
   public void testSkipFully() throws IOException {
@@ -218,7 +216,7 @@ public class CharStreamsTest extends IoTestCase {
   }
 
   /**
-   * Test for Guava issue 1061: http://code.google.com/p/guava-libraries/issues/detail?id=1061
+   * Test for Guava issue 1061: https://github.com/google/guava/issues/1061
    *
    * <p>CharStreams.copy was failing to clear its CharBuffer after each read call, which effectively
    * reduced the available size of the buffer each time a call to read didn't fill up the available
@@ -267,6 +265,13 @@ public class CharStreamsTest extends IoTestCase {
     String test = "Test string for NullWriter";
     nullWriter.write(test);
     nullWriter.write(test, 2, 10);
+    nullWriter.append(null);
+    nullWriter.append(null, 0, 4);
+
+    assertThrows(IndexOutOfBoundsException.class, () -> nullWriter.append(null, -1, 4));
+
+    assertThrows(IndexOutOfBoundsException.class, () -> nullWriter.append(null, 0, 5));
+
     // nothing really to assert?
     assertSame(CharStreams.nullWriter(), CharStreams.nullWriter());
   }
